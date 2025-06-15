@@ -29,6 +29,16 @@ export async function salvarConversa(usuarioId, mensagemRecebida, mensagemEnviad
 }
 
 /**
+ * Salva uma mensagem (alias para salvarConversa)
+ * @param {string} usuarioId - ID do usuário
+ * @param {string} mensagemRecebida - Mensagem recebida do usuário
+ * @param {string} mensagemEnviada - Resposta enviada pelo bot
+ */
+export async function salvarMensagem(usuarioId, mensagemRecebida, mensagemEnviada) {
+  return await salvarConversa(usuarioId, mensagemRecebida, mensagemEnviada);
+}
+
+/**
  * Busca o histórico de mensagens de um usuário
  * @param {string} usuarioId - ID do usuário
  * @param {number} limite - Número máximo de mensagens a buscar
