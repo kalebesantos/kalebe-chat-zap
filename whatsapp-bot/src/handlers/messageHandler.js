@@ -5,12 +5,12 @@ import { buscarModoResposta, atualizarConfiguracao, buscarConfiguracao } from '.
 import { usuarioEstaAtivo, ativarConversaPorNumero, desativarConversaPorNumero, listarConversasAtivas } from '../services/activeConversationService.js';
 import { 
   adicionarMensagemAdmin, 
-  analisarEstiloAdmin, 
   ativarPerfilEstilo, 
   desativarTodosPerfiles, 
   importarMensagensWhatsApp,
   listarPerfisEstilo 
 } from '../services/styleLearningService.js';
+import { analisarEstiloAdmin } from '../services/styleAnalyzer.js';
 import { processarMensagemAudio, toggleAudioTranscription } from './audioHandler.js';
 import { buscarHistoricoMensagens } from '../services/messageService.js';
 
