@@ -10,6 +10,7 @@ import UsersTable from '@/components/UsersTable';
 import MessagesView from '@/components/MessagesView';
 import ActiveConversationsManager from '@/components/ActiveConversationsManager';
 import StyleLearningManager from '@/components/StyleLearningManager';
+import BotConfigManager from '@/components/BotConfigManager';
 import { useToast } from '@/hooks/use-toast';
 
 interface DashboardProps {
@@ -17,7 +18,7 @@ interface DashboardProps {
 }
 
 const Dashboard = ({ session }: DashboardProps) => {
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('config');
   const { toast } = useToast();
 
   const handleLogout = async () => {
@@ -60,18 +61,22 @@ const Dashboard = ({ session }: DashboardProps) => {
             Gerenciamento do Bot
           </h2>
           <p className="text-gray-600">
-            Gerencie usuários, conversas ativas, aprendizado de estilo e visualize mensagens do bot de WhatsApp
+            Gerencie configurações, usuários, conversas ativas, aprendizado de estilo e visualize mensagens do bot de WhatsApp
           </p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+          <TabsList className="grid w-full grid-cols-5 max-w-3xl">
+            <TabsTrigger value="config" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Configurações
+            </TabsTrigger>
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Usuários
             </TabsTrigger>
             <TabsTrigger value="conversations" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
+              <MessageSquare className="h-4 w-4" />
               Conversas Ativas
             </TabsTrigger>
             <TabsTrigger value="style" className="flex items-center gap-2">
@@ -83,6 +88,10 @@ const Dashboard = ({ session }: DashboardProps) => {
               Mensagens
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="config" className="space-y-6">
+            <BotConfigManager />
+          </TabsContent>
 
           <TabsContent value="users" className="space-y-6">
             <Card>
