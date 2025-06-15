@@ -1,73 +1,197 @@
-# Welcome to your Lovable project
 
-## Project info
+# Painel Administrativo - Bot WhatsApp
 
-**URL**: https://lovable.dev/projects/b1ce633b-1311-434a-8a94-ccbebc326024
+Um painel web completo para gerenciar seu bot de WhatsApp integrado com OpenAI e Supabase.
 
-## How can I edit this code?
+## 🚀 Funcionalidades
 
-There are several ways of editing your application.
+### 🔐 Autenticação
+- Sistema de login/logout seguro
+- Cadastro de novos administradores
+- Autenticação via Supabase Auth
 
-**Use Lovable**
+### 👥 Gerenciamento de Usuários
+- Visualizar todos os usuários cadastrados no bot
+- Editar nome e estilo de fala de cada usuário
+- Informações detalhadas (número WhatsApp, data de cadastro)
+- 6 estilos de fala disponíveis: Neutro, Engraçado, Educado, Direto, Amigável, Brasileiro
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b1ce633b-1311-434a-8a94-ccbebc326024) and start prompting.
+### 💬 Histórico de Mensagens
+- Visualizar todas as conversas entre usuários e o bot
+- Filtrar mensagens por usuário específico
+- Buscar por texto nas mensagens
+- Paginação para melhor performance
+- Interface intuitiva separando mensagens do usuário e respostas do bot
 
-Changes made via Lovable will be committed automatically to this repo.
+### 📱 Interface Responsiva
+- Design moderno e limpo
+- Compatível com desktop, tablet e mobile
+- Componentes shadcn/ui para uma experiência consistente
+- Navegação por abas entre funcionalidades
 
-**Use your preferred IDE**
+## 🛠️ Tecnologias Utilizadas
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- **Frontend**: React 18 + TypeScript + Vite
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Backend**: Supabase (Database + Authentication)
+- **Icons**: Lucide React
+- **State Management**: React Query + React Hooks
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## 📋 Pré-requisitos
 
-Follow these steps:
+- Node.js 18+ instalado
+- Projeto Supabase configurado
+- Bot WhatsApp já funcionando (conforme pasta `whatsapp-bot/`)
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+## 🚀 Como executar
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+### 1. Instalação
+```bash
+# Clone o repositório (se necessário)
+git clone [seu-repositorio]
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+# Instale as dependências
+npm install
 ```
 
-**Edit a file directly in GitHub**
+### 2. Configuração
+O projeto já está configurado para usar o Supabase. As variáveis de ambiente estão definidas em:
+- `src/integrations/supabase/client.ts`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### 3. Execução
+```bash
+# Modo desenvolvimento
+npm run dev
 
-**Use GitHub Codespaces**
+# Build para produção
+npm run build
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+# Preview da build
+npm run preview
+```
 
-## What technologies are used for this project?
+### 4. Primeiro acesso
+1. Acesse `http://localhost:5173`
+2. Clique em "Não tem conta? Cadastre-se"
+3. Crie sua conta de administrador
+4. Faça login e acesse o painel
 
-This project is built with:
+## 📊 Estrutura do Banco de Dados
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+O painel utiliza as mesmas tabelas do bot WhatsApp:
 
-## How can I deploy this project?
+### Tabela `usuarios`
+```sql
+- id (UUID, PK)
+- nome (TEXT)
+- numero_whatsapp (TEXT, UNIQUE)
+- estilo_fala (TEXT, DEFAULT 'neutro')
+- created_at (TIMESTAMP)
+```
 
-Simply open [Lovable](https://lovable.dev/projects/b1ce633b-1311-434a-8a94-ccbebc326024) and click on Share -> Publish.
+### Tabela `mensagens`
+```sql
+- id (UUID, PK)
+- usuario_id (UUID, FK -> usuarios.id)
+- mensagem_recebida (TEXT)
+- mensagem_enviada (TEXT)
+- timestamp (TIMESTAMP)
+```
 
-## Can I connect a custom domain to my Lovable project?
+## 🔧 Configuração do Supabase
 
-Yes, you can!
+### Autenticação
+1. No painel do Supabase, vá para `Authentication > Settings`
+2. Configure a URL do site: `http://localhost:5173` (desenvolvimento)
+3. Adicione URLs de redirecionamento conforme necessário
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+### Políticas RLS
+As tabelas já possuem políticas RLS configuradas para acesso público, permitindo que o painel funcione corretamente.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+## 📁 Estrutura do Projeto
+
+```
+src/
+├── components/
+│   ├── ui/                 # Componentes shadcn/ui
+│   ├── AuthPage.tsx        # Página de autenticação
+│   ├── Dashboard.tsx       # Painel principal
+│   ├── UsersTable.tsx      # Tabela de usuários
+│   └── MessagesView.tsx    # Visualização de mensagens
+├── integrations/
+│   └── supabase/          # Configuração Supabase
+├── pages/
+│   └── Index.tsx          # Página inicial
+└── lib/
+    └── utils.ts           # Utilitários
+```
+
+## 🔍 Funcionalidades Detalhadas
+
+### Gerenciamento de Usuários
+- **Listagem**: Visualize todos os usuários com paginação automática
+- **Edição**: Clique no ícone de edição para alterar nome e estilo de fala
+- **Estilos disponíveis**:
+  - 🤖 Neutro - Respostas equilibradas e naturais
+  - 😂 Engraçado - Humor brasileiro e descontração
+  - 🎩 Educado - Linguagem formal e respeitosa
+  - ⚡ Direto - Respostas objetivas e práticas
+  - 😊 Amigável - Tom caloroso e acolhedor
+  - 🇧🇷 Brasileiro - Gírias e expressões regionais
+
+### Histórico de Mensagens
+- **Visualização**: Mensagens organizadas cronologicamente
+- **Filtros**: Por usuário específico ou busca por texto
+- **Paginação**: 10 mensagens por página para performance
+- **Design**: Interface clara separando mensagens enviadas e recebidas
+
+### Segurança
+- **Autenticação obrigatória**: Apenas usuários autenticados acessam o painel
+- **Session management**: Controle automático de sessões
+- **RLS**: Row Level Security no Supabase para proteção dos dados
+
+## 🚀 Deploy
+
+Para fazer deploy em produção:
+
+1. **Build do projeto**:
+```bash
+npm run build
+```
+
+2. **Deploy no Vercel/Netlify**:
+   - Conecte seu repositório
+   - Configure as variáveis de ambiente se necessário
+   - O build será automático
+
+3. **Configurar Supabase**:
+   - Adicione a URL de produção nas configurações de autenticação
+   - Atualize as URLs de redirecionamento
+
+## 🤝 Integração com o Bot
+
+Este painel trabalha com os mesmos dados do bot WhatsApp localizado na pasta `whatsapp-bot/`. 
+
+**Fluxo completo**:
+1. Usuário interage com o bot no WhatsApp
+2. Bot cadastra/atualiza usuário no Supabase
+3. Bot salva mensagens trocadas no Supabase
+4. Painel web exibe e permite gerenciar esses dados
+
+## 📞 Suporte
+
+Se encontrar problemas:
+1. Verifique se o Supabase está configurado corretamente
+2. Confirme se as tabelas existem no banco
+3. Verifique as políticas RLS
+4. Consulte os logs do navegador para erros
+
+## 🔮 Próximas Funcionalidades
+
+Possíveis melhorias futuras:
+- Dashboard com estatísticas de uso
+- Exportação de dados em CSV/PDF
+- Configuração de respostas automáticas
+- Sistema de notificações
+- Análise de sentimentos das conversas
+- Integração com múltiplos bots
