@@ -1,6 +1,7 @@
 
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
+import { buscarHistoricoMensagens } from './messageService.js';
 
 dotenv.config();
 
@@ -13,12 +14,14 @@ const openai = new OpenAI({
 });
 
 /**
- * Gera uma resposta usando a API da OpenAI baseada no estilo de fala do usuário
+ * Gera uma resposta usando a API da OpenAI baseada no estilo de fala do usuário e histórico
  * @param {string} mensagemUsuario - Mensagem recebida do usuário
  * @param {string} estiloFala - Estilo de fala do usuário
+ * @param {string} usuarioId - ID do usuário para buscar histórico
+ * @param {string} nomeUsuario - Nome do usuário para personalização
  * @returns {string} Resposta gerada pela IA
  */
-export async function gerarResposta(mensagemUsuario, estiloFala = 'neutro') {
+export async function gerarResposta(mensagemUsuario, estiloFala = 'neutro', usuarioId, nomeUsuario = null) {
   try {
     // Define o prompt baseado no estilo de fala
     const promptPorEstilo = {
@@ -36,19 +39,49 @@ export async function gerarResposta(mensagemUsuario, estiloFala = 'neutro') {
     };
 
     const promptEstilo = promptPorEstilo[estiloFala] || promptPorEstilo.neutro;
+    
+    // Personalização com nome do usuário
+    const personalizacao = nomeUsuario 
+      ? `Quando apropriado, use o nome do usuário (${nomeUsuario}) para personalizar as respostas.`
+      : '';
+
+    // Busca histórico das últimas 5 mensagens
+    const historico = await buscarHistoricoMensagens(usuarioId, 5);
+    
+    // Constrói o contexto com as mensagens anteriores
+    const mensagensContexto = [];
+    
+    // Adiciona mensagem do sistema
+    mensagensContexto.push({
+      role: "system",
+      content: `Você é um assistente inteligente no WhatsApp. ${promptEstilo} ${personalizacao} Mantenha as respostas concisas e adequadas para mensagens de celular.`
+    });
+
+    // Adiciona histórico de mensagens (do mais antigo para o mais recente)
+    if (historico.length > 0) {
+      historico.reverse().forEach(msg => {
+        mensagensContexto.push({
+          role: "user",
+          content: msg.mensagem_recebida
+        });
+        mensagensContexto.push({
+          role: "assistant",
+          content: msg.mensagem_enviada
+        });
+      });
+    }
+
+    // Adiciona a mensagem atual
+    mensagensContexto.push({
+      role: "user",
+      content: mensagemUsuario
+    });
+
+    console.log(`🧠 Gerando resposta com contexto de ${historico.length} mensagens anteriores`);
 
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
-      messages: [
-        {
-          role: "system",
-          content: `Você é um assistente inteligente no WhatsApp. ${promptEstilo} Mantenha as respostas concisas e adequadas para mensagens de celular.`
-        },
-        {
-          role: "user",
-          content: mensagemUsuario
-        }
-      ],
+      messages: mensagensContexto,
       max_tokens: 500,
       temperature: 0.7,
     });

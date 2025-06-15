@@ -70,3 +70,24 @@ export async function atualizarEstiloFala(userId, novoEstilo) {
     throw error;
   }
 }
+
+/**
+ * Atualiza o nome de um usuário
+ * @param {string} userId - ID do usuário
+ * @param {string} novoNome - Novo nome do usuário
+ */
+export async function atualizarNomeUsuario(userId, novoNome) {
+  try {
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ nome: novoNome })
+      .eq('id', userId);
+
+    if (error) throw error;
+    
+    console.log(`✅ Nome do usuário atualizado para: ${novoNome}`);
+  } catch (error) {
+    console.error('❌ Erro ao atualizar nome do usuário:', error);
+    throw error;
+  }
+}

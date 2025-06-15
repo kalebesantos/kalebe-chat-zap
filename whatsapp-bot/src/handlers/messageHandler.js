@@ -1,5 +1,5 @@
 
-import { buscarOuCriarUsuario, atualizarEstiloFala } from '../services/userService.js';
+import { buscarOuCriarUsuario, atualizarEstiloFala, atualizarNomeUsuario } from '../services/userService.js';
 import { salvarConversa } from '../services/messageService.js';
 import { gerarResposta, listarEstilosDisponiveis } from '../services/openaiService.js';
 
@@ -29,6 +29,12 @@ export async function processarMensagem(message, client) {
       return;
     }
 
+    // Verifica se é um comando para alterar nome
+    if (textoMensagem.toLowerCase().startsWith('/nome ')) {
+      await processarComandoNome(textoMensagem, usuario, message, client);
+      return;
+    }
+
     // Verifica se é comando para listar estilos
     if (textoMensagem.toLowerCase() === '/estilos') {
       const estilos = listarEstilosDisponiveis();
@@ -44,16 +50,23 @@ export async function processarMensagem(message, client) {
         `📝 Comandos disponíveis:\n` +
         `• /estilos - Ver estilos de fala\n` +
         `• /estilo [nome] - Alterar estilo\n` +
+        `• /nome [nome] - Alterar seu nome\n` +
         `• /ajuda - Esta mensagem\n\n` +
+        `👤 Seu nome: *${usuario.nome || 'Não definido'}*\n` +
         `💬 Seu estilo atual: *${usuario.estilo_fala}*\n\n` +
-        `Envie qualquer mensagem e eu responderei!`;
+        `Envie qualquer mensagem e eu responderei com contexto das conversas anteriores!`;
       
       await client.sendMessage(message.from, mensagemAjuda);
       return;
     }
 
-    // Gera resposta usando OpenAI
-    const respostaIA = await gerarResposta(textoMensagem, usuario.estilo_fala);
+    // Gera resposta usando OpenAI com contexto e personalização
+    const respostaIA = await gerarResposta(
+      textoMensagem, 
+      usuario.estilo_fala, 
+      usuario.id, 
+      usuario.nome
+    );
 
     // Envia a resposta de volta
     await client.sendMessage(message.from, respostaIA);
@@ -95,6 +108,39 @@ async function processarComandoEstilo(textoMensagem, usuario, message, client) {
   
   const mensagemSucesso = `✅ Estilo de fala alterado para: *${novoEstilo}*\n\n` +
     `🤖 Agora responderei com esse estilo. Envie uma mensagem para testar!`;
+  
+  await client.sendMessage(message.from, mensagemSucesso);
+}
+
+/**
+ * Processa comando para alterar nome do usuário
+ */
+async function processarComandoNome(textoMensagem, usuario, message, client) {
+  const novoNome = textoMensagem.substring(6).trim();
+  
+  if (!novoNome || novoNome.length < 2) {
+    const mensagemErro = `❌ Nome inválido!\n\n` +
+      `💡 Use: /nome [seu nome]\n` +
+      `Exemplo: /nome João Silva`;
+    
+    await client.sendMessage(message.from, mensagemErro);
+    return;
+  }
+
+  if (novoNome.length > 50) {
+    const mensagemErro = `❌ Nome muito longo! Use até 50 caracteres.\n\n` +
+      `💡 Use: /nome [seu nome]\n` +
+      `Exemplo: /nome João Silva`;
+    
+    await client.sendMessage(message.from, mensagemErro);
+    return;
+  }
+
+  await atualizarNomeUsuario(usuario.id, novoNome);
+  
+  const mensagemSucesso = `✅ Nome atualizado com sucesso!\n\n` +
+    `👤 Seu novo nome: *${novoNome}*\n\n` +
+    `🤖 Agora vou te chamar por esse nome nas conversas. Teste enviando uma mensagem!`;
   
   await client.sendMessage(message.from, mensagemSucesso);
 }
