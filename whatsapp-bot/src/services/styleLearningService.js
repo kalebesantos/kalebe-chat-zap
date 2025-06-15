@@ -1,19 +1,11 @@
-
 import { supabase } from '../config/database.js';
-import openai from './openaiService.js'; // reutiliza o cliente OpenRouter
+import openai from './openaiService.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
 /**
  * Adiciona uma mensagem do administrador para aprendizado
- * @param {string} adminId - ID do administrador
- * @param {string} conteudo - Conteúdo da mensagem
- * @param {string} fonte - Fonte da mensagem ('manual', 'whatsapp_export', 'sistema')
  */
 export async function adicionarMensagemAdmin(adminId, conteudo, fonte = 'manual') {
   try {
@@ -41,18 +33,15 @@ export async function adicionarMensagemAdmin(adminId, conteudo, fonte = 'manual'
 
 /**
  * Analisa as mensagens do administrador e gera um perfil de estilo
- * @param {string} adminId - ID do administrador
- * @param {string} nomeAdmin - Nome do administrador
  */
 export async function analisarEstiloAdmin(adminId, nomeAdmin) {
   try {
-    // Busca todas as mensagens do administrador
     const { data: mensagens, error } = await supabase
       .from('admin_messages')
       .select('conteudo, timestamp')
       .eq('admin_id', adminId)
       .order('timestamp', { ascending: false })
-      .limit(100); // Últimas 100 mensagens
+      .limit(100);
 
     if (error || !mensagens || mensagens.length === 0) {
       console.log(`⚠️ Nenhuma mensagem encontrada para ${adminId}`);
@@ -61,10 +50,8 @@ export async function analisarEstiloAdmin(adminId, nomeAdmin) {
 
     console.log(`🧠 Analisando ${mensagens.length} mensagens de ${nomeAdmin}...`);
 
-    // Prepara o texto para análise
     const textoMensagens = mensagens.map(m => m.conteudo).join('\n');
 
-    // Usa OpenAI para analisar o estilo
     const completion = await openai.chat.completions.create({
       model: "gpt-3.5-turbo",
       messages: [{
@@ -94,12 +81,8 @@ Retorne um JSON com a estrutura:
 
     const analise = JSON.parse(completion.choices[0].message.content);
 
-    // Seleciona exemplos representativos (5-10 mensagens)
-    const exemplosMensagens = mensagens
-      .slice(0, 10)
-      .map(m => m.conteudo);
+    const exemplosMensagens = mensagens.slice(0, 10).map(m => m.conteudo);
 
-    // Salva ou atualiza o perfil no banco
     const { error: perfilError } = await supabase
       .from('admin_style_profiles')
       .upsert({
@@ -132,7 +115,6 @@ Retorne um JSON com a estrutura:
 
 /**
  * Busca o perfil de estilo ativo
- * @returns {Object|null} Perfil de estilo ativo ou null
  */
 export async function buscarPerfilEstiloAtivo() {
   try {
@@ -155,17 +137,14 @@ export async function buscarPerfilEstiloAtivo() {
 
 /**
  * Ativa um perfil de estilo específico
- * @param {string} adminId - ID do administrador
  */
 export async function ativarPerfilEstilo(adminId) {
   try {
-    // Desativa todos os perfis
     await supabase
       .from('admin_style_profiles')
       .update({ ativo: false })
       .neq('admin_id', '');
 
-    // Ativa o perfil específico
     const { error } = await supabase
       .from('admin_style_profiles')
       .update({ ativo: true })
@@ -209,20 +188,15 @@ export async function desativarTodosPerfiles() {
 
 /**
  * Importa mensagens de um export do WhatsApp
- * @param {string} adminId - ID do administrador
- * @param {string} textoExport - Texto do export do WhatsApp
  */
 export async function importarMensagensWhatsApp(adminId, textoExport) {
   try {
-    // Regex para extrair mensagens do formato WhatsApp export
     const regexMensagem = /\d{2}\/\d{2}\/\d{4}, \d{2}:\d{2} - ([^:]+): (.+)/g;
     const mensagens = [];
     let match;
 
     while ((match = regexMensagem.exec(textoExport)) !== null) {
       const [, autor, conteudo] = match;
-      
-      // Verifica se é mensagem do admin (por nome ou número)
       if (autor.trim() === adminId || autor.includes(adminId)) {
         mensagens.push({
           admin_id: adminId,
@@ -238,7 +212,6 @@ export async function importarMensagensWhatsApp(adminId, textoExport) {
       return 0;
     }
 
-    // Insere mensagens em lotes
     const { error } = await supabase
       .from('admin_messages')
       .insert(mensagens);
