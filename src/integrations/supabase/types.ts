@@ -87,6 +87,56 @@ export type Database = {
         }
         Relationships: []
       }
+      audio_transcriptions: {
+        Row: {
+          arquivo_original: string
+          confianca_transcricao: number | null
+          created_at: string | null
+          duracao_segundos: number | null
+          erro_detalhes: string | null
+          id: string
+          status: string | null
+          tamanho_bytes: number | null
+          tempo_processamento_ms: number | null
+          texto_transcrito: string
+          usuario_id: string | null
+        }
+        Insert: {
+          arquivo_original: string
+          confianca_transcricao?: number | null
+          created_at?: string | null
+          duracao_segundos?: number | null
+          erro_detalhes?: string | null
+          id?: string
+          status?: string | null
+          tamanho_bytes?: number | null
+          tempo_processamento_ms?: number | null
+          texto_transcrito: string
+          usuario_id?: string | null
+        }
+        Update: {
+          arquivo_original?: string
+          confianca_transcricao?: number | null
+          created_at?: string | null
+          duracao_segundos?: number | null
+          erro_detalhes?: string | null
+          id?: string
+          status?: string | null
+          tamanho_bytes?: number | null
+          tempo_processamento_ms?: number | null
+          texto_transcrito?: string
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audio_transcriptions_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bot_config: {
         Row: {
           chave: string

@@ -5,10 +5,19 @@ import qrcode from 'qrcode-terminal';
 import dotenv from 'dotenv';
 import { processarMensagem } from './handlers/messageHandler.js';
 
+// Polyfill para FormData (necessário para transcrição de áudio)
+import { FormData } from 'formdata-polyfill/esm.min.js';
+globalThis.FormData = FormData;
+
 // Carrega variáveis de ambiente
 dotenv.config();
 
-console.log('🚀 Iniciando Bot WhatsApp...');
+console.log('🚀 Iniciando Bot WhatsApp com suporte a transcrição de áudio...');
+
+// Verificar se a chave da OpenAI está configurada
+if (!process.env.OPENAI_API_KEY) {
+  console.warn('⚠️ OPENAI_API_KEY não configurada. Transcrição de áudio não funcionará.');
+}
 
 // Cria o cliente WhatsApp com autenticação local
 const client = new Client({
@@ -40,6 +49,7 @@ client.on('qr', (qr) => {
 // Evento: Cliente pronto
 client.on('ready', () => {
   console.log('✅ Bot WhatsApp conectado e pronto!');
+  console.log('🎤 Suporte a transcrição de áudio ativo!');
   console.log('🤖 Aguardando mensagens...\n');
   
   // Envia mensagem de teste para si mesmo (opcional)

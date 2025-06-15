@@ -11,6 +11,7 @@ import {
   importarMensagensWhatsApp,
   listarPerfisEstilo 
 } from '../services/styleLearningService.js';
+import { processarMensagemAudio, toggleAudioTranscription } from './audioHandler.js';
 
 /**
  * Processa mensagens recebidas no WhatsApp
@@ -33,6 +34,12 @@ export async function processarMensagem(message, client) {
     if (textoMensagem.startsWith('/')) {
       await processarComandoAdmin(textoMensagem, numeroUsuario, client);
       return;
+    }
+
+    // Verifica se é mensagem de áudio e processa se necessário
+    if (message.hasMedia && (message.type === 'audio' || message.type === 'ptt')) {
+      await processarMensagemAudio(message, client);
+      return; // Áudio já foi processado, não precisa processar como texto
     }
 
     // Busca ou cria o usuário
@@ -157,7 +164,23 @@ async function processarComandoAdmin(comando, numeroUsuario, client) {
         }
         break;
 
-      // Novos comandos para aprendizado de estilo
+      // Novos comandos para transcrição de áudio
+      case '/audio':
+        if (partes[1] && ['on', 'off'].includes(partes[1])) {
+          const ativar = partes[1] === 'on';
+          const sucesso = await toggleAudioTranscription(ativar);
+          const resposta = sucesso 
+            ? `🎤 Transcrição de áudio ${ativar ? 'ativada' : 'desativada'}` 
+            : '❌ Erro ao alterar configuração de áudio';
+          await client.sendMessage(chatId, resposta);
+        } else {
+          const audioAtivo = await buscarConfiguracao('transcricao_audio_ativa') === 'true';
+          await client.sendMessage(chatId, 
+            `🎤 Status: Transcrição de áudio ${audioAtivo ? 'ativada' : 'desativada'}\n\nUse:\n• \`/audio on\` - Ativar\n• \`/audio off\` - Desativar`);
+        }
+        break;
+
+      // Comandos existentes para aprendizado de estilo
       case '/adicionar_msg':
         const mensagemAdmin = comando.replace('/adicionar_msg', '').trim();
         if (mensagemAdmin) {
@@ -242,6 +265,7 @@ Use /ativar_estilo para começar a usar este perfil.`;
       case '/status':
         const modo = await buscarModoResposta();
         const aprendizadoAtivo = await buscarConfiguracao('aprendizado_estilo_ativo') === 'true';
+        const audioAtivo = await buscarConfiguracao('transcricao_audio_ativa') === 'true';
         const conversasCount = (await listarConversasAtivas()).length;
         const perfisCount = (await listarPerfisEstilo()).length;
         
@@ -249,6 +273,7 @@ Use /ativar_estilo para começar a usar este perfil.`;
 • Modo: ${modo}
 • Conversas ativas: ${conversasCount}
 • Aprendizado de estilo: ${aprendizadoAtivo ? 'Ativo' : 'Inativo'}
+• Transcrição de áudio: ${audioAtivo ? 'Ativa' : 'Inativa'}
 • Perfis de estilo: ${perfisCount}`;
         
         await client.sendMessage(chatId, status);
@@ -266,6 +291,11 @@ Use /ativar_estilo para começar a usar este perfil.`;
 • \`/ativar [numero]\` - Ativar conversa
 • \`/desativar [numero]\` - Desativar conversa  
 • \`/listar_ativos\` - Ver conversas ativas
+
+**Transcrição de Áudio:**
+• \`/audio on\` - Ativar transcrição de áudios
+• \`/audio off\` - Desativar transcrição de áudios
+• \`/audio\` - Ver status atual
 
 **Aprendizado de Estilo:**
 • \`/adicionar_msg [mensagem]\` - Adicionar mensagem sua

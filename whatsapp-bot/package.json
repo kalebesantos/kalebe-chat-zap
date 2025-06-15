@@ -2,20 +2,22 @@
 {
   "name": "whatsapp-bot-supabase",
   "version": "1.0.0",
-  "description": "Bot WhatsApp integrado com OpenAI e Supabase",
-  "main": "src/index.js",
+  "description": "Bot WhatsApp com Supabase e OpenAI",
   "type": "module",
+  "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js"
   },
   "dependencies": {
     "whatsapp-web.js": "^1.23.0",
+    "@supabase/supabase-js": "^2.39.7",
     "qrcode-terminal": "^0.12.0",
-    "openai": "^4.28.0",
-    "@supabase/supabase-js": "^2.39.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "form-data": "^4.0.0",
+    "node-fetch": "^3.3.2"
   },
-  "author": "Seu Nome",
-  "license": "MIT"
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
