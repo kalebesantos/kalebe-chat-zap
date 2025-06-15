@@ -1,4 +1,3 @@
-
 import OpenAI from 'openai';
 import dotenv from 'dotenv';
 import { buscarHistoricoMensagens } from './messageService.js';
@@ -6,6 +5,8 @@ import { buscarPerfilEstiloAtivo } from './styleLearningService.js';
 import { buscarConfiguracao } from './configService.js';
 
 dotenv.config();
+// LOG extra para ver se a key está disponível
+console.log('[OpenAI Init] OPENAI_API_KEY', process.env.OPENAI_API_KEY ? 'OK' : 'NÃO ENCONTRADA');
 
 if (!process.env.OPENAI_API_KEY) {
   throw new Error('OPENAI_API_KEY é obrigatória no arquivo .env');
@@ -121,7 +122,13 @@ Responda mantendo EXATAMENTE esse estilo de comunicação.`;
     return resposta;
 
   } catch (error) {
-    console.error('❌ Erro ao gerar resposta da OpenAI:', error);
+    console.error('[❌ OpenAI] Erro ao gerar resposta:', {
+      mensagemUsuario,
+      estiloFala,
+      usuarioId,
+      nomeUsuario,
+      detalhes: error?.response?.data || error.message || error
+    });
     return 'Desculpe, tive um problema para processar sua mensagem. Tente novamente em alguns instantes.';
   }
 }

@@ -1,9 +1,9 @@
-
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
 import dotenv from 'dotenv';
 import { processarMensagem } from './handlers/messageHandler.js';
+import { supabase } from './config/database.js';
 
 // Polyfill para FormData (necessário para transcrição de áudio)
 import { FormData } from 'formdata-polyfill/esm.min.js';
@@ -47,13 +47,26 @@ client.on('qr', (qr) => {
 });
 
 // Evento: Cliente pronto
-client.on('ready', () => {
+client.on('ready', async () => {
   console.log('✅ Bot WhatsApp conectado e pronto!');
   console.log('🎤 Suporte a transcrição de áudio ativo!');
   console.log('🤖 Aguardando mensagens...\n');
   
-  // Envia mensagem de teste para si mesmo (opcional)
-  // client.sendMessage('seu_numero@c.us', '🤖 Bot iniciado com sucesso!');
+  // Atualiza o status do bot na tabela bot_config para online
+  try {
+    const { error } = await supabase
+      .from('bot_config')
+      .upsert([
+        { chave: 'bot_online', valor: 'true', descricao: 'Status online do bot', updated_at: new Date().toISOString() }
+      ], { onConflict: ['chave'] });
+    if (error) {
+      console.error('❌ Falha ao marcar o bot como online no banco:', error);
+    } else {
+      console.log('✅ Status do bot atualizado para ONLINE na tabela bot_config');
+    }
+  } catch (err) {
+    console.error('❌ Erro ao atualizar status do bot (online):', err);
+  }
 });
 
 // Evento: Autenticação bem-sucedida
@@ -67,9 +80,24 @@ client.on('auth_failure', (msg) => {
 });
 
 // Evento: Cliente desconectado
-client.on('disconnected', (reason) => {
+client.on('disconnected', async (reason) => {
   console.log('⚠️ Cliente desconectado:', reason);
   console.log('🔄 Tentando reconectar...');
+  // Atualiza status do bot para offline
+  try {
+    const { error } = await supabase
+      .from('bot_config')
+      .upsert([
+        { chave: 'bot_online', valor: 'false', descricao: 'Status online do bot', updated_at: new Date().toISOString() }
+      ], { onConflict: ['chave'] });
+    if (error) {
+      console.error('❌ Falha ao marcar o bot como offline no banco:', error);
+    } else {
+      console.log('ℹ️ Status do bot atualizado para OFFLINE na tabela bot_config');
+    }
+  } catch (err) {
+    console.error('❌ Erro ao atualizar status do bot (offline):', err);
+  }
 });
 
 // Evento: Nova mensagem recebida
@@ -88,12 +116,32 @@ client.initialize();
 // Tratamento de sinais para encerramento gracioso
 process.on('SIGINT', async () => {
   console.log('\n🛑 Recebido sinal de interrupção, encerrando bot...');
+  // Marca offline no banco
+  try {
+    await supabase
+      .from('bot_config')
+      .upsert([
+        { chave: 'bot_online', valor: 'false', descricao: 'Status online do bot', updated_at: new Date().toISOString() }
+      ], { onConflict: ['chave'] });
+  } catch (err) {
+    console.error('❌ Erro ao atualizar status do bot (offline on SIGINT):', err);
+  }
   await client.destroy();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('\n🛑 Recebido sinal de término, encerrando bot...');
+  // Marca offline no banco
+  try {
+    await supabase
+      .from('bot_config')
+      .upsert([
+        { chave: 'bot_online', valor: 'false', descricao: 'Status online do bot', updated_at: new Date().toISOString() }
+      ], { onConflict: ['chave'] });
+  } catch (err) {
+    console.error('❌ Erro ao atualizar status do bot (offline on SIGTERM):', err);
+  }
   await client.destroy();
   process.exit(0);
 });
