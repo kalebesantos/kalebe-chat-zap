@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +28,8 @@ const TrainingMessages = ({ adminId, onUpdate }: TrainingMessagesProps) => {
   const [exportText, setExportText] = useState('');
   const [showImport, setShowImport] = useState(false);
   const { toast } = useToast();
+
+  const MIN_QUALITY = 15; // recomendação mínima de exemplos para um bom aprendizado
 
   const buscarMensagens = async () => {
     try {
@@ -204,6 +205,32 @@ const TrainingMessages = ({ adminId, onUpdate }: TrainingMessagesProps) => {
 
   return (
     <div className="space-y-6">
+      {/* Dica visual para qualidade do treinamento */}
+      <div className="rounded-lg p-3 mb-2"
+        style={{
+          background: mensagens.length < MIN_QUALITY
+            ? 'linear-gradient(90deg,#fffbe9 40%,#ffe2e2 100%)'
+            : 'linear-gradient(90deg,#e7fff6 40%,#f3ffe2 100%)'
+        }}>
+        <div className="flex items-center gap-3">
+          {mensagens.length < MIN_QUALITY ? (
+            <>
+              <span className="text-amber-700 font-bold">Poucos exemplos!</span>
+              <span className="text-sm text-gray-600">
+                Adicione pelo menos <b>{MIN_QUALITY} mensagens</b> para garantir um melhor aprendizado do estilo do bot.
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="text-green-600 font-bold">Ótimo aprendizado!</span>
+              <span className="text-sm text-gray-600">
+                Continue adicionando exemplos variados e reais para “ensinar” melhor a IA a imitar seu jeito.
+              </span>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Estatísticas */}
       <div className="grid grid-cols-3 gap-4">
         <Card>

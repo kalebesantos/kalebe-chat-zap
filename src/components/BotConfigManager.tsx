@@ -15,6 +15,7 @@ const BotConfigManager = () => {
   const [conversasAtivas, setConversasAtivas] = useState(0);
   const [loading, setLoading] = useState(true);
   const [botOnline, setBotOnline] = useState<'online' | 'offline' | 'unknown'>('unknown');
+  const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   const buscarStatusBot = async () => {
@@ -201,11 +202,17 @@ const BotConfigManager = () => {
   useEffect(() => {
     buscarConfiguracoes();
 
-    // Atualiza status do bot a cada 12 segundos
+    // Atualiza status a cada 10 segundos, para garantir que o painel está sempre atualizado.
     const timer = setInterval(() => {
       buscarStatusBot();
-    }, 12000);
-    return () => clearInterval(timer);
+    }, 10000);
+    setIntervalId(timer);
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (loading) {
@@ -227,16 +234,16 @@ const BotConfigManager = () => {
               Status do Bot
               <span>
                 {botOnline === 'online' ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200 animate-pulse">
                     <span className="w-2 h-2 bg-green-500 rounded-full inline-block" /> Online
                   </span>
                 ) : botOnline === 'offline' ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold border border-gray-200">
-                    <span className="w-2 h-2 bg-gray-400 rounded-full inline-block" /> Offline
+                    <span className="w-2 h-2 bg-gray-400 rounded-full inline-block animate-pulse opacity-70" /> Offline
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-xs font-semibold border border-yellow-200">
-                    <span className="w-2 h-2 bg-yellow-400 rounded-full inline-block" /> Desconhecido
+                    <span className="w-2 h-2 bg-yellow-400 rounded-full inline-block animate-pulse opacity-70" /> Desconhecido
                   </span>
                 )}
               </span>
@@ -247,7 +254,16 @@ const BotConfigManager = () => {
             </Button>
           </CardTitle>
           <CardDescription>
-            Visão geral do status e configurações do bot WhatsApp
+            <span>
+              O status do bot é atualizado automaticamente a cada 10 segundos.
+            </span>
+            <br />
+            {botOnline === 'online'
+              ? <span className="text-green-700 font-medium">Bot conectado e pronto para interagir.</span>
+              : botOnline === 'offline'
+                ? <span className="text-gray-700 font-medium">Bot desconectado — confira se a integração do WhatsApp está ativa.</span>
+                : <span className="text-yellow-800 font-medium">Status desconhecido — reabra a tela se persistir.</span>
+            }
           </CardDescription>
         </CardHeader>
         <CardContent>
