@@ -1,5 +1,6 @@
 
-import { Client, LocalAuth } from 'whatsapp-web.js';
+import pkg from 'whatsapp-web.js';
+const { Client, LocalAuth } = pkg;
 import qrcode from 'qrcode-terminal';
 import dotenv from 'dotenv';
 import { processarMensagem } from './handlers/messageHandler.js';
