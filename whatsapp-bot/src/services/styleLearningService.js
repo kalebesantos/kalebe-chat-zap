@@ -187,7 +187,39 @@ export async function desativarTodosPerfiles() {
 }
 
 /**
+ * Atualiza o campo "estilo_fala" do usuário (na tabela usuarios)
+ */
+async function atualizarEstiloUsuario(adminId, estiloResumo) {
+  try {
+    // Busca o usuário correspondente ao adminId (número whatsapp)
+    const { data: usuario, error: errorBusca } = await supabase
+      .from('usuarios')
+      .select('id')
+      .eq('numero_whatsapp', adminId)
+      .maybeSingle();
+    if (errorBusca || !usuario) {
+      console.warn(`[StyleLearning] Usuário com número ${adminId} não encontrado para atualizar estilo_fala`);
+      return false;
+    }
+    const { error } = await supabase
+      .from('usuarios')
+      .update({ estilo_fala: estiloResumo })
+      .eq('id', usuario.id);
+    if (error) {
+      console.error('❌ Erro ao atualizar estilo_fala do usuário:', error);
+      return false;
+    }
+    console.log(`[StyleLearning] estilo_fala atualizado para usuário ${adminId}:`, estiloResumo.slice(0, 80) + '...');
+    return true;
+  } catch (error) {
+    console.error('❌ Erro ao atualizar estilo_fala:', error);
+    return false;
+  }
+}
+
+/**
  * Importa mensagens de um export do WhatsApp
+ * Após importar, já analisa e atualiza o perfil de estilo incluindo atualização em usuarios.estilo_fala
  */
 export async function importarMensagensWhatsApp(adminId, textoExport) {
   try {
@@ -206,7 +238,6 @@ export async function importarMensagensWhatsApp(adminId, textoExport) {
         });
       }
     }
-
     if (mensagens.length === 0) {
       console.log('⚠️ Nenhuma mensagem do admin encontrada no export');
       return 0;
@@ -222,6 +253,14 @@ export async function importarMensagensWhatsApp(adminId, textoExport) {
     }
 
     console.log(`✅ ${mensagens.length} mensagens importadas do WhatsApp`);
+
+    // RODA ANÁLISE DE ESTILO APÓS IMPORTAÇÃO E ATUALIZA O PERFIL + CAMPO DE USUÁRIO
+    const nomeAdmin = adminId; // Podemos aprimorar se souber o nome
+    const analise = await analisarEstiloAdmin(adminId, nomeAdmin);
+    if (analise && analise.estilo_resumo) {
+      await atualizarEstiloUsuario(adminId, analise.estilo_resumo);
+    }
+
     return mensagens.length;
   } catch (error) {
     console.error('❌ Erro ao importar mensagens do WhatsApp:', error);
