@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Settings, Bot, Users, MessageSquare, RefreshCw } from 'lucide-react';
+import { Settings, Bot, Users, MessageSquare, RefreshCw, QrCode, AlertTriangle } from 'lucide-react';
 import { StatusBadge } from './common/StatusBadge';
 import { MetricCard } from './common/MetricCard';
 import { useBotOnlineStatus } from '@/hooks/useBotOnlineStatus';
@@ -17,7 +17,7 @@ const BotConfigManager = () => {
   const [totalUsuarios, setTotalUsuarios] = useState(0);
   const [conversasAtivas, setConversasAtivas] = useState(0);
   const [loading, setLoading] = useState(true);
-  const { status: botOnline, refresh: refreshBotStatus } = useBotOnlineStatus(10000);
+  const { status: botStatus, errorMessage, lastHeartbeat, qrCode, refresh: refreshBotStatus } = useBotOnlineStatus(5000); // Poll mais rápido
   const { toast } = useToast();
 
   const buscarConfiguracoes = async () => {
@@ -197,27 +197,58 @@ const BotConfigManager = () => {
             <div className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
               Status do Bot
-              <StatusBadge status={botOnline} />
+              <StatusBadge status={botStatus} />
             </div>
-            <Button variant="outline" size="sm" onClick={buscarConfiguracoes}>
+            <Button variant="outline" size="sm" onClick={() => { buscarConfiguracoes(); refreshBotStatus(); }}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
           </CardTitle>
           <CardDescription>
             <span>
-              O status do bot é atualizado automaticamente a cada 10 segundos.<br />
-              {botOnline === "online" ? (
+              O status do bot é atualizado a cada 5 segundos.<br />
+              {botStatus === "online" && (
                 <span className="text-green-700 font-medium">Bot conectado e pronto para interagir.</span>
-              ) : botOnline === "offline" ? (
-                <span className="text-gray-700 font-medium">Bot desconectado — confira se a integração do WhatsApp está ativa.</span>
-              ) : (
-                <span className="text-yellow-800 font-medium">Status desconhecido — reabra a tela se persistir.</span>
               )}
+              {botStatus === "offline" && (
+                <span className="text-gray-700 font-medium">Bot desconectado. Reinicie o serviço.</span>
+              )}
+              {botStatus === "starting" && (
+                <span className="text-blue-700 font-medium">Inicializando...</span>
+              )}
+              {botStatus === "authenticated" && (
+                <span className="text-blue-700 font-medium">Autenticado no WhatsApp, conectando...</span>
+              )}
+              {botStatus === "qr_pending" && (
+                <span className="text-orange-700 font-medium flex items-center gap-2">
+                  <QrCode className="h-4 w-4 inline" /> Escaneie o QR code para conectar!
+                </span>
+              )}
+              {botStatus === "error" && (
+                <span className="text-red-600 font-medium flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 inline" />
+                  {errorMessage || "Erro desconhecido"}
+                </span>
+              )}
+            </span>
+            <br/>
+            <span className="block text-xs text-gray-400">
+              Última atualização: {lastHeartbeat ? lastHeartbeat.toLocaleString() : 'N/D'}
             </span>
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {qrCode && botStatus === "qr_pending" && (
+            <div className="bg-orange-50 border border-orange-200 rounded p-4 flex flex-col items-center mb-4">
+              <span className="font-medium mb-2">QR Code do WhatsApp:</span>
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(qrCode)}&size=200x200`}
+                alt="QR Code WhatsApp"
+                className="w-40 h-40"
+              />
+              <span className="text-xs mt-2 text-neutral-600">Escaneie para conectar o bot ao WhatsApp.</span>
+            </div>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MetricCard value={totalUsuarios} label="Usuários Total" colorClass="text-blue-600" icon={<Users className="h-4 w-4" />} />
             <MetricCard value={conversasAtivas} label="Conversas Ativas" colorClass="text-green-600" icon={<MessageSquare className="h-4 w-4" />} />

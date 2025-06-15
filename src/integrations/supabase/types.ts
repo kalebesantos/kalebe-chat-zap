@@ -164,6 +164,33 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_status: {
+        Row: {
+          error_message: string | null
+          id: string
+          last_heartbeat: string
+          qr_code: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          error_message?: string | null
+          id?: string
+          last_heartbeat?: string
+          qr_code?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          error_message?: string | null
+          id?: string
+          last_heartbeat?: string
+          qr_code?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       conversas_ativas: {
         Row: {
           admin_iniciou: boolean
@@ -438,7 +465,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      upsert_bot_status: {
+        Args: { p_status: string; p_error_message?: string; p_qr_code?: string }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

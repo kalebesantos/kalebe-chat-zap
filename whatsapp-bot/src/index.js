@@ -39,15 +39,46 @@ const client = new Client({
   }
 });
 
-// Evento: QR Code para autenticação
+// Novo: função para status granular
+async function setBotStatus(status, errorMessage = null, qrCode = null) {
+  // Call Postgres function for upsert
+  try {
+    await supabase.rpc('upsert_bot_status', {
+      p_status: status,
+      p_error_message: errorMessage,
+      p_qr_code: qrCode
+    });
+  } catch (e) {
+    console.error('[BotStatus] Falha ao atualizar status:', e);
+  }
+}
+
+// Registrar heartbeat a cada 30s
+let heartbeatInterval = null;
+function startHeartbeat() {
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  heartbeatInterval = setInterval(() => setBotStatus('online'), 30000);
+}
+
+function stopHeartbeat() {
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+}
+
+// Evento: Inicialização do bot
+setBotStatus('starting');
+
+// Evento: QR code para autenticação
 client.on('qr', (qr) => {
   console.log('📱 Escaneie o QR Code abaixo com o WhatsApp:');
   qrcode.generate(qr, { small: true });
+  setBotStatus('qr_pending', null, qr);
   console.log('\n⚡ Aguardando autenticação...');
 });
 
 // Evento: Cliente pronto
 client.on('ready', async () => {
+  setBotStatus('online');
+  startHeartbeat();
   console.log('✅ Bot WhatsApp conectado e pronto!');
   console.log('🎤 Suporte a transcrição de áudio ativo!');
   console.log('🤖 Aguardando mensagens...\n');
@@ -71,16 +102,19 @@ client.on('ready', async () => {
 
 // Evento: Autenticação bem-sucedida
 client.on('authenticated', () => {
-  console.log('🔐 Autenticação realizada com sucesso!');
+  setBotStatus('authenticated');
 });
 
 // Evento: Falha na autenticação
 client.on('auth_failure', (msg) => {
-  console.error('❌ Falha na autenticação:', msg);
+  setBotStatus('error', `auth_failure: ${msg}`);
+  stopHeartbeat();
 });
 
 // Evento: Cliente desconectado
 client.on('disconnected', async (reason) => {
+  setBotStatus('offline', `disconnected: ${reason}`);
+  stopHeartbeat();
   console.log('⚠️ Cliente desconectado:', reason);
   console.log('🔄 Tentando reconectar...');
   // Atualiza status do bot para offline
@@ -107,7 +141,7 @@ client.on('message', async (message) => {
 
 // Evento: Erro
 client.on('error', (error) => {
-  console.error('❌ Erro no cliente WhatsApp:', error);
+  setBotStatus('error', error?.message || error?.toString());
 });
 
 // Inicializa o cliente
