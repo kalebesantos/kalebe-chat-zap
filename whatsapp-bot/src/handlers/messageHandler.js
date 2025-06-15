@@ -2,6 +2,8 @@
 import { buscarOuCriarUsuario, atualizarEstiloFala, atualizarNomeUsuario } from '../services/userService.js';
 import { salvarConversa } from '../services/messageService.js';
 import { gerarResposta, listarEstilosDisponiveis } from '../services/openaiService.js';
+import { buscarModoResposta, atualizarModoResposta } from '../services/configService.js';
+import { usuarioPorNumeroTemHistorico } from '../services/conversationService.js';
 
 /**
  * Processa mensagens recebidas no WhatsApp
@@ -10,8 +12,10 @@ import { gerarResposta, listarEstilosDisponiveis } from '../services/openaiServi
  */
 export async function processarMensagem(message, client) {
   try {
-    // Ignora mensagens de grupos e mensagens do próprio bot
-    if (message.from.includes('@g.us') || message.fromMe) {
+    // Ignora mensagens de grupos, status e mensagens do próprio bot
+    if (message.from.includes('@g.us') || 
+        message.from.includes('status@broadcast') || 
+        message.fromMe) {
       return;
     }
 
@@ -19,6 +23,33 @@ export async function processarMensagem(message, client) {
     const textoMensagem = message.body.trim();
     
     console.log(`📱 Mensagem recebida de ${numeroRemetente}: ${textoMensagem}`);
+
+    // Verifica comandos de modo (prioritário)
+    if (textoMensagem.toLowerCase().startsWith('/modo ')) {
+      await processarComandoModo(textoMensagem, message, client);
+      return;
+    }
+
+    // Busca o modo atual de resposta
+    const modoAtual = await buscarModoResposta();
+    console.log(`🤖 Modo atual: ${modoAtual}`);
+
+    // Se estiver em modo restrito, verifica se o usuário tem histórico
+    if (modoAtual === 'restrito') {
+      const temHistorico = await usuarioPorNumeroTemHistorico(numeroRemetente);
+      
+      if (!temHistorico) {
+        console.log(`🚫 Usuário ${numeroRemetente} não tem histórico - ignorando mensagem (modo restrito)`);
+        
+        // Opcional: enviar mensagem informando sobre o modo restrito
+        const mensagemRestrito = `🤖 *Bot em Modo Restrito*\n\n` +
+          `Este bot está configurado para responder apenas a usuários com histórico de conversa.\n\n` +
+          `Se você já conversou com este bot anteriormente, entre em contato com o administrador.`;
+        
+        await client.sendMessage(message.from, mensagemRestrito);
+        return;
+      }
+    }
 
     // Busca ou cria o usuário no banco de dados
     const usuario = await buscarOuCriarUsuario(numeroRemetente, message._data.notifyName);
@@ -51,9 +82,11 @@ export async function processarMensagem(message, client) {
         `• /estilos - Ver estilos de fala\n` +
         `• /estilo [nome] - Alterar estilo\n` +
         `• /nome [nome] - Alterar seu nome\n` +
+        `• /modo [aberto|restrito] - Alterar modo\n` +
         `• /ajuda - Esta mensagem\n\n` +
         `👤 Seu nome: *${usuario.nome || 'Não definido'}*\n` +
-        `💬 Seu estilo atual: *${usuario.estilo_fala}*\n\n` +
+        `💬 Seu estilo atual: *${usuario.estilo_fala}*\n` +
+        `🔧 Modo atual: *${modoAtual}*\n\n` +
         `Envie qualquer mensagem e eu responderei com contexto das conversas anteriores!`;
       
       await client.sendMessage(message.from, mensagemAjuda);
@@ -89,6 +122,40 @@ export async function processarMensagem(message, client) {
 }
 
 /**
+ * Processa comando para alterar modo de resposta
+ */
+async function processarComandoModo(textoMensagem, message, client) {
+  const novoModo = textoMensagem.substring(6).trim().toLowerCase();
+  
+  if (!['aberto', 'restrito'].includes(novoModo)) {
+    const mensagemErro = `❌ Modo inválido!\n\n` +
+      `✅ Modos válidos:\n` +
+      `• *aberto* - Responde a qualquer pessoa\n` +
+      `• *restrito* - Responde apenas usuários com histórico\n\n` +
+      `💡 Use: /modo [aberto|restrito]\n` +
+      `Exemplo: /modo restrito`;
+    
+    await client.sendMessage(message.from, mensagemErro);
+    return;
+  }
+
+  const sucesso = await atualizarModoResposta(novoModo);
+  
+  if (sucesso) {
+    const mensagemSucesso = `✅ Modo alterado com sucesso!\n\n` +
+      `🤖 Modo atual: *${novoModo}*\n\n` +
+      `${novoModo === 'aberto' 
+        ? '📢 O bot agora responde a qualquer pessoa que enviar mensagem.' 
+        : '🔒 O bot agora responde apenas a usuários com histórico de conversa.'
+      }`;
+    
+    await client.sendMessage(message.from, mensagemSucesso);
+  } else {
+    await client.sendMessage(message.from, '❌ Erro ao alterar modo. Tente novamente.');
+  }
+}
+
+/**
  * Processa comando para alterar estilo de fala
  */
 async function processarComandoEstilo(textoMensagem, usuario, message, client) {
@@ -112,9 +179,6 @@ async function processarComandoEstilo(textoMensagem, usuario, message, client) {
   await client.sendMessage(message.from, mensagemSucesso);
 }
 
-/**
- * Processa comando para alterar nome do usuário
- */
 async function processarComandoNome(textoMensagem, usuario, message, client) {
   const novoNome = textoMensagem.substring(6).trim();
   

@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      bot_config: {
+        Row: {
+          chave: string
+          created_at: string | null
+          descricao: string | null
+          id: string
+          updated_at: string | null
+          valor: string
+        }
+        Insert: {
+          chave: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          updated_at?: string | null
+          valor: string
+        }
+        Update: {
+          chave?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          updated_at?: string | null
+          valor?: string
+        }
+        Relationships: []
+      }
       mensagens: {
         Row: {
           id: string
