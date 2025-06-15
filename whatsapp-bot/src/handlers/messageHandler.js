@@ -83,21 +83,24 @@ export async function processarMensagem(message, client) {
     // Adiciona a mensagem mais recente do usuário ao histórico
     historico.push({ role: 'user', content: textoMensagem });
 
-    // NOVO: tenta sempre usar o estilo do admin ativo se houver
+    // BUSCA o perfil de estilo do admin ATIVO e prioriza sempre se houver
     let estiloPersonalizado = '';
     const perfilAdminAtivo = await buscarPerfilEstiloAtivo();
+
     if (perfilAdminAtivo && perfilAdminAtivo.estilo_resumo) {
       estiloPersonalizado = perfilAdminAtivo.estilo_resumo;
-    } else if (usuario.estilo_fala) {
-      // fallback antigo - mantém compatibilidade caso não haja perfil de admin
+      console.log('🧑‍💼 Usando o estilo do admin ativo:', estiloPersonalizado);
+    } 
+    // NÃO usa mais fallback de estilo antigo do usuário quando tiver admin ativo
+    else if (!perfilAdminAtivo && usuario.estilo_fala) {
       estiloPersonalizado = usuario.estilo_fala || '';
+      console.log('👤 Usando estilo do próprio usuário (legacy):', estiloPersonalizado);
     }
 
-    // Gera resposta usando IA
+    // Gera resposta usando IA (com o estilo prioritário correto)
     const respostaIA = await gerarResposta({
       historico,
       estiloPersonalizado,
-      // Se tiver configurado um modelo preferencial/já usando OpenRouter, pode vir da config/sistema.
       modelo: undefined // usa padrão do service
     });
 

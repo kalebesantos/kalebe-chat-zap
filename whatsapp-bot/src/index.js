@@ -14,6 +14,9 @@ dotenv.config();
 
 console.log('🚀 Iniciando Bot WhatsApp com suporte a transcrição de áudio...');
 
+// NOVO: Mensagem clara sobre encerrar o bot com 'q'
+console.log('ℹ️ Pressione "q" a qualquer momento no terminal para ENCERRAR o bot.\n');
+
 // Verificar se a chave da OpenAI está configurada
 if (!process.env.OPENAI_API_KEY) {
   console.warn('⚠️ OPENAI_API_KEY não configurada. Transcrição de áudio não funcionará.');
