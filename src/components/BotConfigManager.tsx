@@ -14,29 +14,30 @@ const BotConfigManager = () => {
   const [totalUsuarios, setTotalUsuarios] = useState(0);
   const [conversasAtivas, setConversasAtivas] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [botOnline, setBotOnline] = useState(false);
+  const [botOnline, setBotOnline] = useState<'online' | 'offline' | 'unknown'>('unknown');
   const { toast } = useToast();
 
   const buscarStatusBot = async () => {
-    // Busca o status na tabela bot_status (com fallback; se não existe, sempre retorna off)
     try {
+      // Busca um registro de 'bot_online' na tabela bot_config
       const { data, error } = await supabase
-        .from('bot_status')
-        .select('online, updated_at')
-        .order('updated_at', { ascending: false })
-        .limit(1)
+        .from('bot_config')
+        .select('valor')
+        .eq('chave', 'bot_online')
         .maybeSingle();
 
       if (error) {
-        setBotOnline(false);
+        setBotOnline('unknown');
         console.error('Erro ao buscar status do bot:', error);
-      } else if (data && data.online === true) {
-        setBotOnline(true);
+      } else if (data && data.valor === 'true') {
+        setBotOnline('online');
+      } else if (data && data.valor === 'false') {
+        setBotOnline('offline');
       } else {
-        setBotOnline(false);
+        setBotOnline('unknown');
       }
     } catch (err) {
-      setBotOnline(false);
+      setBotOnline('unknown');
       console.error('Erro ao buscar status do bot:', err);
     }
   };
@@ -225,13 +226,17 @@ const BotConfigManager = () => {
               <Bot className="h-5 w-5" />
               Status do Bot
               <span>
-                {botOnline ? (
+                {botOnline === 'online' ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200">
                     <span className="w-2 h-2 bg-green-500 rounded-full inline-block" /> Online
                   </span>
-                ) : (
+                ) : botOnline === 'offline' ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold border border-gray-200">
                     <span className="w-2 h-2 bg-gray-400 rounded-full inline-block" /> Offline
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-xs font-semibold border border-yellow-200">
+                    <span className="w-2 h-2 bg-yellow-400 rounded-full inline-block" /> Desconhecido
                   </span>
                 )}
               </span>
