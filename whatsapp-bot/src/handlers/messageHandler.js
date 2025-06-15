@@ -2,7 +2,7 @@ import { criarOuAtualizarUsuario, buscarUsuario } from '../services/userService.
 import { salvarMensagem } from '../services/messageService.js';
 import { gerarResposta } from '../services/openaiService.js';
 import { buscarModoResposta, atualizarConfiguracao, buscarConfiguracao } from '../services/configService.js';
-import { verificarConversaAtiva, ativarConversa, desativarConversa, listarConversasAtivas } from '../services/activeConversationService.js';
+import { usuarioEstaAtivo, ativarConversaPorNumero, desativarConversaPorNumero, listarConversasAtivas } from '../services/activeConversationService.js';
 import { 
   adicionarMensagemAdmin, 
   analisarEstiloAdmin, 
@@ -49,7 +49,7 @@ export async function processarMensagem(message, client) {
     const modoResposta = await buscarModoResposta();
     
     if (modoResposta === 'restrito') {
-      const conversaAtiva = await verificarConversaAtiva(usuario.id);
+      const conversaAtiva = await usuarioEstaAtivo(usuario.id);
       if (!conversaAtiva) {
         console.log(`⚠️ Conversa não ativa para ${numeroUsuario} no modo restrito`);
         return; // Não responde se não há conversa ativa
@@ -115,7 +115,7 @@ async function processarComandoAdmin(comando, numeroUsuario, client) {
         if (partes[1]) {
           const numeroLimpo = partes[1].replace(/\D/g, '');
           if (numeroLimpo) {
-            const sucesso = await ativarConversa(numeroLimpo);
+            const sucesso = await ativarConversaPorNumero(numeroLimpo);
             const resposta = sucesso 
               ? `✅ Conversa ativada para ${numeroLimpo}` 
               : '❌ Erro ao ativar conversa';
@@ -132,7 +132,7 @@ async function processarComandoAdmin(comando, numeroUsuario, client) {
         if (partes[1]) {
           const numeroLimpo = partes[1].replace(/\D/g, '');
           if (numeroLimpo) {
-            const sucesso = await desativarConversa(numeroLimpo);
+            const sucesso = await desativarConversaPorNumero(numeroLimpo);
             const resposta = sucesso 
               ? `✅ Conversa desativada para ${numeroLimpo}` 
               : '❌ Erro ao desativar conversa';
@@ -149,7 +149,7 @@ async function processarComandoAdmin(comando, numeroUsuario, client) {
         const conversasAtivas = await listarConversasAtivas();
         if (conversasAtivas.length > 0) {
           const lista = conversasAtivas.map(c => 
-            `📱 ${c.numero_whatsapp} ${c.nome ? `(${c.nome})` : ''}`
+            `📱 ${c.usuarios.numero_whatsapp} ${c.usuarios.nome ? `(${c.usuarios.nome})` : ''}`
           ).join('\n');
           await client.sendMessage(chatId, `📋 Conversas ativas:\n${lista}`);
         } else {
