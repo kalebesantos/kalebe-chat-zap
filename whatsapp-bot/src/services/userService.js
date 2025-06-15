@@ -2,28 +2,44 @@
 import { supabase } from '../config/database.js';
 
 /**
- * Busca ou cria um usuário no banco de dados
+ * Busca um usuário pelo número do WhatsApp
  * @param {string} numeroWhatsapp - Número do WhatsApp do usuário
- * @param {string} nome - Nome do usuário (opcional)
- * @returns {Object} Dados do usuário
+ * @returns {Object|null} Dados do usuário ou null se não encontrado
  */
-export async function buscarOuCriarUsuario(numeroWhatsapp, nome = null) {
+export async function buscarUsuario(numeroWhatsapp) {
   try {
-    // Primeiro, tenta buscar o usuário existente
-    const { data: usuarioExistente, error: errorBusca } = await supabase
+    const { data: usuario, error } = await supabase
       .from('usuarios')
       .select('*')
       .eq('numero_whatsapp', numeroWhatsapp)
       .single();
 
-    if (errorBusca && errorBusca.code !== 'PGRST116') {
-      throw errorBusca;
+    if (error && error.code !== 'PGRST116') {
+      throw error;
     }
 
+    return usuario;
+  } catch (error) {
+    console.error('❌ Erro ao buscar usuário:', error);
+    return null;
+  }
+}
+
+/**
+ * Cria ou atualiza um usuário no banco de dados
+ * @param {string} numeroWhatsapp - Número do WhatsApp do usuário
+ * @param {string} nome - Nome do usuário (opcional)
+ * @returns {Object|null} Dados do usuário criado/atualizado
+ */
+export async function criarOuAtualizarUsuario(numeroWhatsapp, nome = null) {
+  try {
+    // Primeiro, tenta buscar o usuário existente
+    let usuario = await buscarUsuario(numeroWhatsapp);
+
     // Se usuário já existe, retorna os dados
-    if (usuarioExistente) {
-      console.log(`👤 Usuário encontrado: ${usuarioExistente.nome || numeroWhatsapp}`);
-      return usuarioExistente;
+    if (usuario) {
+      console.log(`👤 Usuário encontrado: ${usuario.nome || numeroWhatsapp}`);
+      return usuario;
     }
 
     // Se não existe, cria um novo usuário
@@ -45,9 +61,19 @@ export async function buscarOuCriarUsuario(numeroWhatsapp, nome = null) {
     return novoUsuario;
 
   } catch (error) {
-    console.error('❌ Erro ao buscar/criar usuário:', error);
-    throw error;
+    console.error('❌ Erro ao criar/atualizar usuário:', error);
+    return null;
   }
+}
+
+/**
+ * Busca ou cria um usuário no banco de dados (alias para criarOuAtualizarUsuario)
+ * @param {string} numeroWhatsapp - Número do WhatsApp do usuário
+ * @param {string} nome - Nome do usuário (opcional)
+ * @returns {Object} Dados do usuário
+ */
+export async function buscarOuCriarUsuario(numeroWhatsapp, nome = null) {
+  return await criarOuAtualizarUsuario(numeroWhatsapp, nome);
 }
 
 /**
