@@ -6,9 +6,23 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { TestTube, Send, Bot, User, Zap } from 'lucide-react';
+import type { Json } from '@/integrations/supabase/types';
 
 interface ResponseSimulatorProps {
-  perfilAtivo: any;
+  perfilAtivo: {
+    id: string;
+    admin_id: string;
+    nome_admin: string | null;
+    estilo_resumo: string | null;
+    tom_comunicacao: string | null;
+    ativo: boolean;
+    total_mensagens: number;
+    ultima_atualizacao: string;
+    palavras_frequentes: Json | null;
+    emojis_frequentes: string[] | null;
+    vocabulario_caracteristico: string[] | null;
+    exemplos_mensagens: string[] | null;
+  };
 }
 
 const ResponseSimulator = ({ perfilAtivo }: ResponseSimulatorProps) => {
@@ -17,6 +31,18 @@ const ResponseSimulator = ({ perfilAtivo }: ResponseSimulatorProps) => {
   const [respostaComEstilo, setRespostaComEstilo] = useState('');
   const [historico, setHistorico] = useState<any[]>([]);
   const [simulando, setSimulando] = useState(false);
+
+  // Helper function to safely get palavras frequentes
+  const getPalavrasFrequentes = (palavras: Json | null): string[] => {
+    if (!palavras) return [];
+    if (typeof palavras === 'object' && palavras !== null && 'lista' in palavras) {
+      const lista = (palavras as { lista: unknown }).lista;
+      if (Array.isArray(lista)) {
+        return lista.filter((item): item is string => typeof item === 'string');
+      }
+    }
+    return [];
+  };
 
   const simularResposta = async () => {
     if (!mensagemTeste.trim()) return;
@@ -72,6 +98,8 @@ const ResponseSimulator = ({ perfilAtivo }: ResponseSimulatorProps) => {
     setRespostaPadrao('');
     setRespostaComEstilo('');
   };
+
+  const palavrasFrequentesLista = getPalavrasFrequentes(perfilAtivo.palavras_frequentes);
 
   return (
     <div className="space-y-6">
@@ -209,7 +237,7 @@ const ResponseSimulator = ({ perfilAtivo }: ResponseSimulatorProps) => {
             <div>
               <h4 className="font-medium mb-2">Palavras Características</h4>
               <div className="flex flex-wrap gap-1">
-                {perfilAtivo.palavras_frequentes?.lista?.slice(0, 3).map((palavra: string, index: number) => (
+                {palavrasFrequentesLista.slice(0, 3).map((palavra: string, index: number) => (
                   <Badge key={index} variant="secondary" className="text-xs">{palavra}</Badge>
                 )) || <span className="text-gray-500 text-sm">Nenhuma</span>}
               </div>

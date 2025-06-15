@@ -13,6 +13,7 @@ import StyleAnalytics from './StyleAnalytics';
 import TrainingMessages from './TrainingMessages';
 import ResponseSimulator from './ResponseSimulator';
 import StyleEvolution from './StyleEvolution';
+import type { Json } from '@/integrations/supabase/types';
 
 interface PerfilEstilo {
   id: string;
@@ -23,7 +24,7 @@ interface PerfilEstilo {
   ativo: boolean;
   total_mensagens: number;
   ultima_atualizacao: string;
-  palavras_frequentes: { lista: string[] } | null;
+  palavras_frequentes: Json | null;
   emojis_frequentes: string[] | null;
   vocabulario_caracteristico: string[] | null;
   exemplos_mensagens: string[] | null;
@@ -62,6 +63,18 @@ const LearningProfileDashboard = () => {
     buscarPerfilAtivo();
   }, []);
 
+  // Helper function to safely get palavras frequentes
+  const getPalavrasFrequentes = (palavras: Json | null): string[] => {
+    if (!palavras) return [];
+    if (typeof palavras === 'object' && palavras !== null && 'lista' in palavras) {
+      const lista = (palavras as { lista: unknown }).lista;
+      if (Array.isArray(lista)) {
+        return lista.filter((item): item is string => typeof item === 'string');
+      }
+    }
+    return [];
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -98,6 +111,8 @@ const LearningProfileDashboard = () => {
     return new Date(data).toLocaleString('pt-BR');
   };
 
+  const palavrasFrequentesLista = getPalavrasFrequentes(perfilAtivo.palavras_frequentes);
+
   return (
     <div className="space-y-6">
       {/* Header do Perfil */}
@@ -124,7 +139,7 @@ const LearningProfileDashboard = () => {
             </div>
             <div className="text-center">
               <div className="text-2xl font-bold text-green-600">
-                {perfilAtivo.palavras_frequentes?.lista?.length || 0}
+                {palavrasFrequentesLista.length}
               </div>
               <div className="text-sm text-gray-600">Palavras Frequentes</div>
             </div>
@@ -191,7 +206,7 @@ const LearningProfileDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {perfilAtivo.palavras_frequentes?.lista?.slice(0, 10).map((palavra, index) => (
+                  {palavrasFrequentesLista.slice(0, 10).map((palavra, index) => (
                     <Badge key={index} variant="secondary" className="text-sm">
                       {palavra}
                     </Badge>

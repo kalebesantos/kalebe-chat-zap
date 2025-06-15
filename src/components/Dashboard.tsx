@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -10,6 +11,7 @@ import MessagesView from '@/components/MessagesView';
 import ActiveConversationsManager from '@/components/ActiveConversationsManager';
 import StyleLearningManager from '@/components/StyleLearningManager';
 import BotConfigManager from '@/components/BotConfigManager';
+import LearningProfileDashboard from '@/components/LearningProfileDashboard';
 import { useToast } from '@/hooks/use-toast';
 
 interface DashboardProps {
