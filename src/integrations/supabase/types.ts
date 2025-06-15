@@ -36,6 +36,44 @@ export type Database = {
         }
         Relationships: []
       }
+      conversas_ativas: {
+        Row: {
+          admin_iniciou: boolean
+          ativo: boolean
+          created_at: string | null
+          id: string
+          ultima_atividade: string | null
+          updated_at: string | null
+          usuario_id: string
+        }
+        Insert: {
+          admin_iniciou?: boolean
+          ativo?: boolean
+          created_at?: string | null
+          id?: string
+          ultima_atividade?: string | null
+          updated_at?: string | null
+          usuario_id: string
+        }
+        Update: {
+          admin_iniciou?: boolean
+          ativo?: boolean
+          created_at?: string | null
+          id?: string
+          ultima_atividade?: string | null
+          updated_at?: string | null
+          usuario_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversas_ativas_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: true
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       mensagens: {
         Row: {
           id: string

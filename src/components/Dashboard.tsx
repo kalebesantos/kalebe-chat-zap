@@ -5,9 +5,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogOut, Users, MessageSquare } from 'lucide-react';
+import { LogOut, Users, MessageSquare, Settings } from 'lucide-react';
 import UsersTable from '@/components/UsersTable';
 import MessagesView from '@/components/MessagesView';
+import ActiveConversationsManager from '@/components/ActiveConversationsManager';
 import { useToast } from '@/hooks/use-toast';
 
 interface DashboardProps {
@@ -58,15 +59,19 @@ const Dashboard = ({ session }: DashboardProps) => {
             Gerenciamento do Bot
           </h2>
           <p className="text-gray-600">
-            Gerencie usuários e visualize conversas do bot de WhatsApp
+            Gerencie usuários, conversas ativas e visualize mensagens do bot de WhatsApp
           </p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
+          <TabsList className="grid w-full grid-cols-3 max-w-lg">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Usuários
+            </TabsTrigger>
+            <TabsTrigger value="conversations" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Conversas Ativas
             </TabsTrigger>
             <TabsTrigger value="messages" className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
@@ -86,6 +91,10 @@ const Dashboard = ({ session }: DashboardProps) => {
                 <UsersTable />
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="conversations" className="space-y-6">
+            <ActiveConversationsManager />
           </TabsContent>
 
           <TabsContent value="messages" className="space-y-6">
