@@ -9,6 +9,30 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_config: {
+        Row: {
+          atualizado_em: string | null
+          criado_em: string | null
+          id: string
+          nome_admin: string | null
+          numero_whatsapp: string
+        }
+        Insert: {
+          atualizado_em?: string | null
+          criado_em?: string | null
+          id?: string
+          nome_admin?: string | null
+          numero_whatsapp: string
+        }
+        Update: {
+          atualizado_em?: string | null
+          criado_em?: string | null
+          id?: string
+          nome_admin?: string | null
+          numero_whatsapp?: string
+        }
+        Relationships: []
+      }
       admin_messages: {
         Row: {
           admin_id: string

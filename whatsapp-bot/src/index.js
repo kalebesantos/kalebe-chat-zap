@@ -204,12 +204,39 @@ async function encerrarBotComStatus() {
 // Evento: Autenticação bem-sucedida
 client.on('authenticated', async () => {
   setBotStatus('authenticated');
-  // Aprendizado automático assim que autenticado (com coleta real)
-  const adminNumero = process.env.ADMIN_NUMERO || null;
+
+  // NOVO: Detecta automaticamente o número do admin conectado
+  try {
+    const me = await client.getMe();
+    if (me && me.id && me.id.user) {
+      const autoAdminNumero = me.id.user;
+      await salvarAdminConfig(autoAdminNumero);
+      console.log(`✅ Número do admin automaticamente definido: ${autoAdminNumero}`);
+    } else {
+      console.warn("⚠️ Não foi possível detectar número do admin automaticamente.");
+    }
+  } catch (e) {
+    console.error('❌ Erro ao detectar número do admin:', e);
+  }
+
+  // Sempre tenta buscar ADMIN_NUMERO do banco
+  let adminNumero = process.env.ADMIN_NUMERO || null;
+  if (!adminNumero) {
+    adminNumero = await buscarAdminNumero();
+    if (adminNumero) {
+      console.log(`ℹ️ Número do admin será usado conforme banco: ${adminNumero}`);
+    } else {
+      console.log('⚠️ Número do admin não configurado/não detectado.');
+    }
+  } else {
+    console.log(`ℹ️ Número do admin definido via .env: ${adminNumero}`);
+  }
+
+  // Aprendizado automático com admin detectado
   if (adminNumero) {
     await aprenderComConversasDoAdmin(adminNumero, client);
   } else {
-    console.log('⚠️ Variável ADMIN_NUMERO não definida. Defina no .env para aprendizado automático.');
+    console.log('⚠️ Sem número ADMIN_NUMERO definido nem detectado para aprendizado automático.');
   }
 });
 
