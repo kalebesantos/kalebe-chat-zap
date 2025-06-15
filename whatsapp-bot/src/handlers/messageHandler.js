@@ -1,15 +1,16 @@
-import { buscarOuCriarUsuario, atualizarEstiloFala, atualizarNomeUsuario } from '../services/userService.js';
-import { salvarConversa } from '../services/messageService.js';
-import { gerarResposta, listarEstilosDisponiveis } from '../services/openaiService.js';
-import { buscarModoResposta, atualizarModoResposta } from '../services/configService.js';
-import { usuarioPorNumeroTemHistorico } from '../services/conversationService.js';
+import { criarOuAtualizarUsuario, buscarUsuario } from '../services/userService.js';
+import { salvarMensagem } from '../services/messageService.js';
+import { gerarResposta } from '../services/openaiService.js';
+import { buscarModoResposta, atualizarConfiguracao, buscarConfiguracao } from '../services/configService.js';
+import { verificarConversaAtiva, ativarConversa, desativarConversa, listarConversasAtivas } from '../services/activeConversationService.js';
 import { 
-  usuarioPorNumeroEstaAtivo, 
-  ativarConversaPorNumero, 
-  desativarConversaPorNumero, 
-  listarConversasAtivas,
-  atualizarUltimaAtividade
-} from '../services/activeConversationService.js';
+  adicionarMensagemAdmin, 
+  analisarEstiloAdmin, 
+  ativarPerfilEstilo, 
+  desativarTodosPerfiles, 
+  importarMensagensWhatsApp,
+  listarPerfisEstilo 
+} from '../services/styleLearningService.js';
 
 /**
  * Processa mensagens recebidas no WhatsApp
@@ -18,135 +19,67 @@ import {
  */
 export async function processarMensagem(message, client) {
   try {
-    // Ignora mensagens de grupos, status e mensagens do próprio bot
-    if (message.from.includes('@g.us') || 
-        message.from.includes('status@broadcast') || 
-        message.fromMe) {
+    // Ignora mensagens de status e grupos por enquanto
+    if (message.from.includes('@g.us') || message.from.includes('status')) {
       return;
     }
 
-    const numeroRemetente = message.from.replace('@c.us', '');
-    const textoMensagem = message.body.trim();
+    const numeroUsuario = message.from.replace('@c.us', '');
+    const textoMensagem = message.body?.trim() || '';
     
-    console.log(`📱 Mensagem recebida de ${numeroRemetente}: ${textoMensagem}`);
+    console.log(`📨 Mensagem de ${numeroUsuario}: ${textoMensagem}`);
 
-    // Verifica comandos de administração (prioritário)
-    if (textoMensagem.toLowerCase().startsWith('/ativar ')) {
-      await processarComandoAtivar(textoMensagem, message, client);
+    // Verifica se é um comando administrativo
+    if (textoMensagem.startsWith('/')) {
+      await processarComandoAdmin(textoMensagem, numeroUsuario, client);
       return;
     }
 
-    if (textoMensagem.toLowerCase().startsWith('/desativar ')) {
-      await processarComandoDesativar(textoMensagem, message, client);
-      return;
-    }
-
-    if (textoMensagem.toLowerCase() === '/listar_ativos') {
-      await processarComandoListarAtivos(message, client);
-      return;
-    }
-
-    // Verifica comandos de modo (prioritário)
-    if (textoMensagem.toLowerCase().startsWith('/modo ')) {
-      await processarComandoModo(textoMensagem, message, client);
-      return;
-    }
-
-    // Busca o modo atual de resposta
-    const modoAtual = await buscarModoResposta();
-    console.log(`🤖 Modo atual: ${modoAtual}`);
-
-    // Se estiver em modo restrito, verifica se o usuário pode conversar
-    if (modoAtual === 'restrito') {
-      const estaAtivo = await usuarioPorNumeroEstaAtivo(numeroRemetente);
-      
-      if (!estaAtivo) {
-        console.log(`🚫 Usuário ${numeroRemetente} não está em conversa ativa - ignorando mensagem (modo restrito)`);
-        
-        // Enviar mensagem informando sobre o modo restrito
-        const mensagemRestrito = `🤖 *Bot em Modo Restrito*\n\n` +
-          `Este bot está configurado para responder apenas a usuários em conversas ativas.\n\n` +
-          `Se você precisa falar comigo, entre em contato com o administrador para ativar nossa conversa.`;
-        
-        await client.sendMessage(message.from, mensagemRestrito);
+    // Busca ou cria o usuário
+    let usuario = await buscarUsuario(numeroUsuario);
+    if (!usuario) {
+      usuario = await criarOuAtualizarUsuario(numeroUsuario);
+      if (!usuario) {
+        console.error('❌ Falha ao criar usuário');
         return;
       }
-
-      // Se chegou aqui, usuário está ativo - atualiza última atividade
-      const usuario = await buscarOuCriarUsuario(numeroRemetente, message._data.notifyName);
-      await atualizarUltimaAtividade(usuario.id);
     }
 
-    // Busca ou cria o usuário no banco de dados
-    const usuario = await buscarOuCriarUsuario(numeroRemetente, message._data.notifyName);
-
-    // Verifica se é um comando para alterar estilo de fala
-    if (textoMensagem.toLowerCase().startsWith('/estilo ')) {
-      await processarComandoEstilo(textoMensagem, usuario, message, client);
-      return;
+    // Verifica modo de resposta
+    const modoResposta = await buscarModoResposta();
+    
+    if (modoResposta === 'restrito') {
+      const conversaAtiva = await verificarConversaAtiva(usuario.id);
+      if (!conversaAtiva) {
+        console.log(`⚠️ Conversa não ativa para ${numeroUsuario} no modo restrito`);
+        return; // Não responde se não há conversa ativa
+      }
     }
 
-    // Verifica se é um comando para alterar nome
-    if (textoMensagem.toLowerCase().startsWith('/nome ')) {
-      await processarComandoNome(textoMensagem, usuario, message, client);
-      return;
-    }
-
-    // Verifica se é comando para listar estilos
-    if (textoMensagem.toLowerCase() === '/estilos') {
-      const estilos = listarEstilosDisponiveis();
-      const mensagemEstilos = `📋 *Estilos de fala disponíveis:*\n\n${estilos.join('\n')}\n\n💡 Use: /estilo [nome] para alterar\nExemplo: /estilo engracado`;
-      
-      await client.sendMessage(message.from, mensagemEstilos);
-      return;
-    }
-
-    // Verifica se é comando de ajuda
-    if (textoMensagem.toLowerCase() === '/ajuda' || textoMensagem.toLowerCase() === '/help') {
-      const estaAtivo = modoAtual === 'restrito' ? await usuarioPorNumeroEstaAtivo(numeroRemetente) : true;
-      
-      const mensagemAjuda = `🤖 *Bot WhatsApp IA*\n\n` +
-        `📝 Comandos disponíveis:\n` +
-        `• /estilos - Ver estilos de fala\n` +
-        `• /estilo [nome] - Alterar estilo\n` +
-        `• /nome [nome] - Alterar seu nome\n` +
-        `• /modo [aberto|restrito] - Alterar modo\n` +
-        `• /ativar [numero] - Ativar conversa (admin)\n` +
-        `• /desativar [numero] - Desativar conversa (admin)\n` +
-        `• /listar_ativos - Listar conversas ativas (admin)\n` +
-        `• /ajuda - Esta mensagem\n\n` +
-        `👤 Seu nome: *${usuario.nome || 'Não definido'}*\n` +
-        `💬 Seu estilo atual: *${usuario.estilo_fala}*\n` +
-        `🔧 Modo atual: *${modoAtual}*\n` +
-        `${modoAtual === 'restrito' ? `🟢 Status conversa: *${estaAtivo ? 'Ativa' : 'Inativa'}*\n` : ''}` +
-        `\nEnvie qualquer mensagem e eu responderei com contexto das conversas anteriores!`;
-      
-      await client.sendMessage(message.from, mensagemAjuda);
-      return;
-    }
-
-    // Gera resposta usando OpenAI com contexto e personalização
+    // Gera resposta usando IA
     const respostaIA = await gerarResposta(
-      textoMensagem, 
-      usuario.estilo_fala, 
-      usuario.id, 
+      textoMensagem,
+      usuario.estilo_fala || 'neutro',
+      usuario.id,
       usuario.nome
     );
 
-    // Envia a resposta de volta
-    await client.sendMessage(message.from, respostaIA);
-
-    // Salva a conversa no banco de dados
-    await salvarConversa(usuario.id, textoMensagem, respostaIA);
-
-    console.log(`✅ Resposta enviada para ${numeroRemetente}`);
+    // Envia a resposta
+    if (respostaIA) {
+      await client.sendMessage(message.from, respostaIA);
+      
+      // Salva a conversa no banco
+      await salvarMensagem(usuario.id, textoMensagem, respostaIA);
+      
+      console.log(`✅ Resposta enviada para ${numeroUsuario}`);
+    }
 
   } catch (error) {
     console.error('❌ Erro ao processar mensagem:', error);
     
-    // Envia mensagem de erro para o usuário
     try {
-      await client.sendMessage(message.from, 'Desculpe, houve um erro ao processar sua mensagem. Tente novamente.');
+      await client.sendMessage(message.from, 
+        'Desculpe, ocorreu um erro interno. Tente novamente em alguns instantes.');
     } catch (sendError) {
       console.error('❌ Erro ao enviar mensagem de erro:', sendError);
     }
@@ -154,180 +87,206 @@ export async function processarMensagem(message, client) {
 }
 
 /**
- * Processa comando para ativar conversa
+ * Processa comandos administrativos
+ * @param {string} comando - Comando recebido
+ * @param {string} numeroUsuario - Número do usuário que enviou
+ * @param {Object} client - Cliente do WhatsApp
  */
-async function processarComandoAtivar(textoMensagem, message, client) {
-  const numeroParaAtivar = textoMensagem.substring(8).trim();
-  
-  if (!numeroParaAtivar || numeroParaAtivar.length < 10) {
-    const mensagemErro = `❌ Número inválido!\n\n` +
-      `💡 Use: /ativar [numero]\n` +
-      `Exemplo: /ativar 5511999999999`;
-    
-    await client.sendMessage(message.from, mensagemErro);
-    return;
+async function processarComandoAdmin(comando, numeroUsuario, client) {
+  const chatId = numeroUsuario + '@c.us';
+  const partes = comando.split(' ');
+  const cmd = partes[0].toLowerCase();
+
+  try {
+    switch (cmd) {
+      case '/modo':
+        if (partes[1] && ['aberto', 'restrito'].includes(partes[1])) {
+          const sucesso = await atualizarConfiguracao('modo_resposta', partes[1]);
+          const resposta = sucesso 
+            ? `✅ Modo alterado para: ${partes[1]}` 
+            : '❌ Erro ao alterar modo';
+          await client.sendMessage(chatId, resposta);
+        } else {
+          await client.sendMessage(chatId, '❌ Use: /modo aberto ou /modo restrito');
+        }
+        break;
+
+      case '/ativar':
+        if (partes[1]) {
+          const numeroLimpo = partes[1].replace(/\D/g, '');
+          if (numeroLimpo) {
+            const sucesso = await ativarConversa(numeroLimpo);
+            const resposta = sucesso 
+              ? `✅ Conversa ativada para ${numeroLimpo}` 
+              : '❌ Erro ao ativar conversa';
+            await client.sendMessage(chatId, resposta);
+          } else {
+            await client.sendMessage(chatId, '❌ Número inválido');
+          }
+        } else {
+          await client.sendMessage(chatId, '❌ Use: /ativar [numero]');
+        }
+        break;
+
+      case '/desativar':
+        if (partes[1]) {
+          const numeroLimpo = partes[1].replace(/\D/g, '');
+          if (numeroLimpo) {
+            const sucesso = await desativarConversa(numeroLimpo);
+            const resposta = sucesso 
+              ? `✅ Conversa desativada para ${numeroLimpo}` 
+              : '❌ Erro ao desativar conversa';
+            await client.sendMessage(chatId, resposta);
+          } else {
+            await client.sendMessage(chatId, '❌ Número inválido');
+          }
+        } else {
+          await client.sendMessage(chatId, '❌ Use: /desativar [numero]');
+        }
+        break;
+
+      case '/listar_ativos':
+        const conversasAtivas = await listarConversasAtivas();
+        if (conversasAtivas.length > 0) {
+          const lista = conversasAtivas.map(c => 
+            `📱 ${c.numero_whatsapp} ${c.nome ? `(${c.nome})` : ''}`
+          ).join('\n');
+          await client.sendMessage(chatId, `📋 Conversas ativas:\n${lista}`);
+        } else {
+          await client.sendMessage(chatId, '📋 Nenhuma conversa ativa no momento');
+        }
+        break;
+
+      // Novos comandos para aprendizado de estilo
+      case '/adicionar_msg':
+        const mensagemAdmin = comando.replace('/adicionar_msg', '').trim();
+        if (mensagemAdmin) {
+          const sucesso = await adicionarMensagemAdmin(numeroUsuario, mensagemAdmin);
+          const resposta = sucesso 
+            ? '✅ Mensagem adicionada para aprendizado' 
+            : '❌ Erro ao adicionar mensagem';
+          await client.sendMessage(chatId, resposta);
+        } else {
+          await client.sendMessage(chatId, '❌ Use: /adicionar_msg [sua mensagem]');
+        }
+        break;
+
+      case '/analisar_estilo':
+        const nomeAdmin = partes.slice(1).join(' ') || 'Administrador';
+        await client.sendMessage(chatId, '🧠 Analisando seu estilo de comunicação...');
+        
+        const analise = await analisarEstiloAdmin(numeroUsuario, nomeAdmin);
+        if (analise) {
+          const resumo = `✅ Análise concluída!
+
+📊 **Perfil de ${nomeAdmin}:**
+• Tom: ${analise.tom_comunicacao}
+• Estilo: ${analise.estilo_resumo}
+• Emojis: ${analise.emojis_frequentes?.join(' ') || 'Variados'}
+
+Use /ativar_estilo para começar a usar este perfil.`;
+          await client.sendMessage(chatId, resumo);
+        } else {
+          await client.sendMessage(chatId, '❌ Erro na análise. Adicione mais mensagens primeiro.');
+        }
+        break;
+
+      case '/ativar_estilo':
+        const sucessoAtivacao = await ativarPerfilEstilo(numeroUsuario);
+        if (sucessoAtivacao) {
+          await atualizarConfiguracao('aprendizado_estilo_ativo', 'true');
+          await client.sendMessage(chatId, '✅ Seu estilo de comunicação foi ativado! O bot agora responderá imitando seu jeito de falar.');
+        } else {
+          await client.sendMessage(chatId, '❌ Erro ao ativar estilo. Analise seu estilo primeiro com /analisar_estilo');
+        }
+        break;
+
+      case '/desativar_estilo':
+        await desativarTodosPerfiles();
+        await atualizarConfiguracao('aprendizado_estilo_ativo', 'false');
+        await client.sendMessage(chatId, '✅ Aprendizado de estilo desativado. Bot voltou ao modo normal.');
+        break;
+
+      case '/listar_perfis':
+        const perfis = await listarPerfisEstilo();
+        if (perfis.length > 0) {
+          const listaPerfis = perfis.map(p => 
+            `${p.ativo ? '✅' : '⭕'} ${p.nome_admin || p.admin_id} (${p.total_mensagens} msgs)`
+          ).join('\n');
+          await client.sendMessage(chatId, `📋 Perfis disponíveis:\n${listaPerfis}`);
+        } else {
+          await client.sendMessage(chatId, '📋 Nenhum perfil de estilo criado ainda');
+        }
+        break;
+
+      case '/importar_whatsapp':
+        await client.sendMessage(chatId, 
+          `📥 Para importar mensagens do WhatsApp:
+1. Exporte sua conversa (sem mídia)
+2. Copie o texto do arquivo
+3. Use: /processar_export [texto copiado]`);
+        break;
+
+      case '/processar_export':
+        const textoExport = comando.replace('/processar_export', '').trim();
+        if (textoExport) {
+          await client.sendMessage(chatId, '📥 Processando export do WhatsApp...');
+          const qtdImportadas = await importarMensagensWhatsApp(numeroUsuario, textoExport);
+          await client.sendMessage(chatId, 
+            `✅ ${qtdImportadas} mensagens importadas! Use /analisar_estilo para gerar seu perfil.`);
+        } else {
+          await client.sendMessage(chatId, '❌ Cole o texto do export após o comando');
+        }
+        break;
+
+      case '/status':
+        const modo = await buscarModoResposta();
+        const aprendizadoAtivo = await buscarConfiguracao('aprendizado_estilo_ativo') === 'true';
+        const conversasCount = (await listarConversasAtivas()).length;
+        const perfisCount = (await listarPerfisEstilo()).length;
+        
+        const status = `📊 **Status do Bot:**
+• Modo: ${modo}
+• Conversas ativas: ${conversasCount}
+• Aprendizado de estilo: ${aprendizadoAtivo ? 'Ativo' : 'Inativo'}
+• Perfis de estilo: ${perfisCount}`;
+        
+        await client.sendMessage(chatId, status);
+        break;
+
+      case '/ajuda':
+        const ajuda = `🤖 **Comandos Disponíveis:**
+
+**Modo de Operação:**
+• \`/modo aberto\` - Responde a todos
+• \`/modo restrito\` - Só responde a conversas ativas
+• \`/status\` - Ver status do bot
+
+**Conversas Ativas:**
+• \`/ativar [numero]\` - Ativar conversa
+• \`/desativar [numero]\` - Desativar conversa  
+• \`/listar_ativos\` - Ver conversas ativas
+
+**Aprendizado de Estilo:**
+• \`/adicionar_msg [mensagem]\` - Adicionar mensagem sua
+• \`/analisar_estilo [nome]\` - Analisar seu estilo
+• \`/ativar_estilo\` - Ativar imitação do seu estilo
+• \`/desativar_estilo\` - Voltar ao modo normal
+• \`/listar_perfis\` - Ver perfis disponíveis
+• \`/importar_whatsapp\` - Instruções para importar
+• \`/processar_export [texto]\` - Processar export
+
+• \`/ajuda\` - Ver esta mensagem`;
+        
+        await client.sendMessage(chatId, ajuda);
+        break;
+
+      default:
+        await client.sendMessage(chatId, '❌ Comando não reconhecido. Use /ajuda para ver os comandos disponíveis.');
+        break;
+    }
+  } catch (error) {
+    console.error('❌ Erro ao processar comando admin:', error);
+    await client.sendMessage(chatId, '❌ Erro ao processar comando.');
   }
-
-  const sucesso = await ativarConversaPorNumero(numeroParaAtivar, true);
-  
-  if (sucesso) {
-    const mensagemSucesso = `✅ Conversa ativada com sucesso!\n\n` +
-      `📱 Número: *${numeroParaAtivar}*\n` +
-      `🟢 Status: *Ativo*\n\n` +
-      `O usuário agora pode conversar com o bot no modo restrito.`;
-    
-    await client.sendMessage(message.from, mensagemSucesso);
-  } else {
-    await client.sendMessage(message.from, '❌ Erro ao ativar conversa. Verifique se o número já conversou com o bot.');
-  }
-}
-
-/**
- * Processa comando para desativar conversa
- */
-async function processarComandoDesativar(textoMensagem, message, client) {
-  const numeroParaDesativar = textoMensagem.substring(11).trim();
-  
-  if (!numeroParaDesativar || numeroParaDesativar.length < 10) {
-    const mensagemErro = `❌ Número inválido!\n\n` +
-      `💡 Use: /desativar [numero]\n` +
-      `Exemplo: /desativar 5511999999999`;
-    
-    await client.sendMessage(message.from, mensagemErro);
-    return;
-  }
-
-  const sucesso = await desativarConversaPorNumero(numeroParaDesativar);
-  
-  if (sucesso) {
-    const mensagemSucesso = `✅ Conversa desativada com sucesso!\n\n` +
-      `📱 Número: *${numeroParaDesativar}*\n` +
-      `🔴 Status: *Inativo*\n\n` +
-      `O usuário não pode mais conversar com o bot no modo restrito.`;
-    
-    await client.sendMessage(message.from, mensagemSucesso);
-  } else {
-    await client.sendMessage(message.from, '❌ Erro ao desativar conversa. Verifique se o número existe.');
-  }
-}
-
-/**
- * Processa comando para listar conversas ativas
- */
-async function processarComandoListarAtivos(message, client) {
-  const conversasAtivas = await listarConversasAtivas();
-  
-  if (conversasAtivas.length === 0) {
-    const mensagemVazia = `📋 *Conversas Ativas*\n\n` +
-      `Nenhuma conversa ativa no momento.\n\n` +
-      `💡 Use /ativar [numero] para ativar uma conversa.`;
-    
-    await client.sendMessage(message.from, mensagemVazia);
-    return;
-  }
-
-  let mensagemLista = `📋 *Conversas Ativas* (${conversasAtivas.length})\n\n`;
-  
-  conversasAtivas.forEach((conversa, index) => {
-    const nome = conversa.usuarios.nome || 'Sem nome';
-    const numero = conversa.usuarios.numero_whatsapp;
-    const adminIniciou = conversa.admin_iniciou ? '👤' : '🤖';
-    const ultimaAtividade = new Date(conversa.ultima_atividade).toLocaleString('pt-BR');
-    
-    mensagemLista += `${index + 1}. ${adminIniciou} *${nome}*\n`;
-    mensagemLista += `   📱 ${numero}\n`;
-    mensagemLista += `   🕒 ${ultimaAtividade}\n\n`;
-  });
-  
-  mensagemLista += `💡 Legenda:\n👤 = Admin iniciou\n🤖 = Auto-ativada`;
-  
-  await client.sendMessage(message.from, mensagemLista);
-}
-
-/**
- * Processa comando para alterar modo de resposta
- */
-async function processarComandoModo(textoMensagem, message, client) {
-  const novoModo = textoMensagem.substring(6).trim().toLowerCase();
-  
-  if (!['aberto', 'restrito'].includes(novoModo)) {
-    const mensagemErro = `❌ Modo inválido!\n\n` +
-      `✅ Modos válidos:\n` +
-      `• *aberto* - Responde a qualquer pessoa\n` +
-      `• *restrito* - Responde apenas usuários em conversa ativa\n\n` +
-      `💡 Use: /modo [aberto|restrito]\n` +
-      `Exemplo: /modo restrito`;
-    
-    await client.sendMessage(message.from, mensagemErro);
-    return;
-  }
-
-  const sucesso = await atualizarModoResposta(novoModo);
-  
-  if (sucesso) {
-    const mensagemSucesso = `✅ Modo alterado com sucesso!\n\n` +
-      `🤖 Modo atual: *${novoModo}*\n\n` +
-      `${novoModo === 'aberto' 
-        ? '📢 O bot agora responde a qualquer pessoa que enviar mensagem.' 
-        : '🔒 O bot agora responde apenas a usuários em conversas ativas.\n\n💡 Use /ativar [numero] para ativar conversas.'
-      }`;
-    
-    await client.sendMessage(message.from, mensagemSucesso);
-  } else {
-    await client.sendMessage(message.from, '❌ Erro ao alterar modo. Tente novamente.');
-  }
-}
-
-/**
- * Processa comando para alterar estilo de fala
- */
-async function processarComandoEstilo(textoMensagem, usuario, message, client) {
-  const novoEstilo = textoMensagem.substring(8).trim().toLowerCase();
-  const estilosValidos = ['neutro', 'engracado', 'educado', 'direto', 'amigavel', 'brasileiro'];
-  
-  if (!estilosValidos.includes(novoEstilo)) {
-    const mensagemErro = `❌ Estilo inválido!\n\n` +
-      `✅ Estilos válidos: ${estilosValidos.join(', ')}\n\n` +
-      `💡 Use: /estilos para ver a lista completa`;
-    
-    await client.sendMessage(message.from, mensagemErro);
-    return;
-  }
-
-  await atualizarEstiloFala(usuario.id, novoEstilo);
-  
-  const mensagemSucesso = `✅ Estilo de fala alterado para: *${novoEstilo}*\n\n` +
-    `🤖 Agora responderei com esse estilo. Envie uma mensagem para testar!`;
-  
-  await client.sendMessage(message.from, mensagemSucesso);
-}
-
-async function processarComandoNome(textoMensagem, usuario, message, client) {
-  const novoNome = textoMensagem.substring(6).trim();
-  
-  if (!novoNome || novoNome.length < 2) {
-    const mensagemErro = `❌ Nome inválido!\n\n` +
-      `💡 Use: /nome [seu nome]\n` +
-      `Exemplo: /nome João Silva`;
-    
-    await client.sendMessage(message.from, mensagemErro);
-    return;
-  }
-
-  if (novoNome.length > 50) {
-    const mensagemErro = `❌ Nome muito longo! Use até 50 caracteres.\n\n` +
-      `💡 Use: /nome [seu nome]\n` +
-      `Exemplo: /nome João Silva`;
-    
-    await client.sendMessage(message.from, mensagemErro);
-    return;
-  }
-
-  await atualizarNomeUsuario(usuario.id, novoNome);
-  
-  const mensagemSucesso = `✅ Nome atualizado com sucesso!\n\n` +
-    `👤 Seu novo nome: *${novoNome}*\n\n` +
-    `🤖 Agora vou te chamar por esse nome nas conversas. Teste enviando uma mensagem!`;
-  
-  await client.sendMessage(message.from, mensagemSucesso);
 }

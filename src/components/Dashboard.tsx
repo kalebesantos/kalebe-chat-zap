@@ -5,10 +5,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LogOut, Users, MessageSquare, Settings } from 'lucide-react';
+import { LogOut, Users, MessageSquare, Settings, Brain } from 'lucide-react';
 import UsersTable from '@/components/UsersTable';
 import MessagesView from '@/components/MessagesView';
 import ActiveConversationsManager from '@/components/ActiveConversationsManager';
+import StyleLearningManager from '@/components/StyleLearningManager';
 import { useToast } from '@/hooks/use-toast';
 
 interface DashboardProps {
@@ -59,12 +60,12 @@ const Dashboard = ({ session }: DashboardProps) => {
             Gerenciamento do Bot
           </h2>
           <p className="text-gray-600">
-            Gerencie usuários, conversas ativas e visualize mensagens do bot de WhatsApp
+            Gerencie usuários, conversas ativas, aprendizado de estilo e visualize mensagens do bot de WhatsApp
           </p>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 max-w-lg">
+          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               Usuários
@@ -72,6 +73,10 @@ const Dashboard = ({ session }: DashboardProps) => {
             <TabsTrigger value="conversations" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Conversas Ativas
+            </TabsTrigger>
+            <TabsTrigger value="style" className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              Estilo IA
             </TabsTrigger>
             <TabsTrigger value="messages" className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
@@ -95,6 +100,10 @@ const Dashboard = ({ session }: DashboardProps) => {
 
           <TabsContent value="conversations" className="space-y-6">
             <ActiveConversationsManager />
+          </TabsContent>
+
+          <TabsContent value="style" className="space-y-6">
+            <StyleLearningManager />
           </TabsContent>
 
           <TabsContent value="messages" className="space-y-6">

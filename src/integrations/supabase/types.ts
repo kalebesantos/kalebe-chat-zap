@@ -9,6 +9,84 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      admin_messages: {
+        Row: {
+          admin_id: string
+          conteudo: string
+          created_at: string | null
+          fonte: string | null
+          id: string
+          timestamp: string | null
+        }
+        Insert: {
+          admin_id: string
+          conteudo: string
+          created_at?: string | null
+          fonte?: string | null
+          id?: string
+          timestamp?: string | null
+        }
+        Update: {
+          admin_id?: string
+          conteudo?: string
+          created_at?: string | null
+          fonte?: string | null
+          id?: string
+          timestamp?: string | null
+        }
+        Relationships: []
+      }
+      admin_style_profiles: {
+        Row: {
+          admin_id: string
+          ativo: boolean | null
+          created_at: string | null
+          emojis_frequentes: string[] | null
+          estilo_resumo: string | null
+          exemplos_mensagens: string[] | null
+          id: string
+          nome_admin: string | null
+          palavras_frequentes: Json | null
+          tom_comunicacao: string | null
+          total_mensagens: number | null
+          ultima_atualizacao: string | null
+          updated_at: string | null
+          vocabulario_caracteristico: string[] | null
+        }
+        Insert: {
+          admin_id: string
+          ativo?: boolean | null
+          created_at?: string | null
+          emojis_frequentes?: string[] | null
+          estilo_resumo?: string | null
+          exemplos_mensagens?: string[] | null
+          id?: string
+          nome_admin?: string | null
+          palavras_frequentes?: Json | null
+          tom_comunicacao?: string | null
+          total_mensagens?: number | null
+          ultima_atualizacao?: string | null
+          updated_at?: string | null
+          vocabulario_caracteristico?: string[] | null
+        }
+        Update: {
+          admin_id?: string
+          ativo?: boolean | null
+          created_at?: string | null
+          emojis_frequentes?: string[] | null
+          estilo_resumo?: string | null
+          exemplos_mensagens?: string[] | null
+          id?: string
+          nome_admin?: string | null
+          palavras_frequentes?: Json | null
+          tom_comunicacao?: string | null
+          total_mensagens?: number | null
+          ultima_atualizacao?: string | null
+          updated_at?: string | null
+          vocabulario_caracteristico?: string[] | null
+        }
+        Relationships: []
+      }
       bot_config: {
         Row: {
           chave: string
