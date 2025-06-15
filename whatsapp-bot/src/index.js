@@ -53,6 +53,21 @@ async function setBotStatus(status, errorMessage = null, qrCode = null) {
   }
 }
 
+// Função auxiliar para garantir status offline mesmo em encerramentos abruptos
+async function setBotOffline() {
+  try {
+    await setBotStatus('offline', 'Encerramento solicitado ou abrupto');
+    await supabase
+      .from('bot_config')
+      .upsert([
+        { chave: 'bot_online', valor: 'false', descricao: 'Status online do bot', updated_at: new Date().toISOString() }
+      ], { onConflict: ['chave'] });
+    console.log('ℹ️ Status do bot atualizado para OFFLINE');
+  } catch (err) {
+    console.error('❌ Erro ao atualizar status do bot para OFFLINE:', err);
+  }
+}
+
 // Registrar heartbeat a cada 30s
 let heartbeatInterval = null;
 function startHeartbeat() {
@@ -150,32 +165,14 @@ client.initialize();
 // Tratamento de sinais para encerramento gracioso
 process.on('SIGINT', async () => {
   console.log('\n🛑 Recebido sinal de interrupção, encerrando bot...');
-  // Marca offline no banco
-  try {
-    await supabase
-      .from('bot_config')
-      .upsert([
-        { chave: 'bot_online', valor: 'false', descricao: 'Status online do bot', updated_at: new Date().toISOString() }
-      ], { onConflict: ['chave'] });
-  } catch (err) {
-    console.error('❌ Erro ao atualizar status do bot (offline on SIGINT):', err);
-  }
+  await setBotOffline();
   await client.destroy();
   process.exit(0);
 });
 
 process.on('SIGTERM', async () => {
   console.log('\n🛑 Recebido sinal de término, encerrando bot...');
-  // Marca offline no banco
-  try {
-    await supabase
-      .from('bot_config')
-      .upsert([
-        { chave: 'bot_online', valor: 'false', descricao: 'Status online do bot', updated_at: new Date().toISOString() }
-      ], { onConflict: ['chave'] });
-  } catch (err) {
-    console.error('❌ Erro ao atualizar status do bot (offline on SIGTERM):', err);
-  }
+  await setBotOffline();
   await client.destroy();
   process.exit(0);
 });
@@ -185,7 +182,8 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('❌ Erro não tratado:', reason);
 });
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', async (error) => {
   console.error('❌ Exceção não capturada:', error);
+  await setBotOffline();
   process.exit(1);
 });

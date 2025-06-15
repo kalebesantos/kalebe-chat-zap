@@ -13,6 +13,7 @@ import {
 import { analisarEstiloAdmin } from '../services/styleAnalyzer.js';
 import { processarMensagemAudio, toggleAudioTranscription } from './audioHandler.js';
 import { buscarHistoricoMensagens } from '../services/messageService.js';
+import { buscarPerfilEstiloAtivo } from '../services/styleLearningService.js';
 
 /**
  * Processa mensagens recebidas no WhatsApp
@@ -82,8 +83,17 @@ export async function processarMensagem(message, client) {
     // Adiciona a mensagem mais recente do usuário ao histórico
     historico.push({ role: 'user', content: textoMensagem });
 
+    // NOVO: tenta sempre usar o estilo do admin ativo se houver
+    let estiloPersonalizado = '';
+    const perfilAdminAtivo = await buscarPerfilEstiloAtivo();
+    if (perfilAdminAtivo && perfilAdminAtivo.estilo_resumo) {
+      estiloPersonalizado = perfilAdminAtivo.estilo_resumo;
+    } else if (usuario.estilo_fala) {
+      // fallback antigo - mantém compatibilidade caso não haja perfil de admin
+      estiloPersonalizado = usuario.estilo_fala || '';
+    }
+
     // Gera resposta usando IA
-    const estiloPersonalizado = usuario.estilo_fala || '';
     const respostaIA = await gerarResposta({
       historico,
       estiloPersonalizado,
