@@ -152,6 +152,90 @@ export type Database = {
           },
         ]
       }
+      conversation_contexts: {
+        Row: {
+          admin_id: string
+          ativo: boolean | null
+          created_at: string | null
+          descricao: string | null
+          id: string
+          palavras_chave: string[] | null
+          respostas_padrao: string[] | null
+          tipo_contexto: string
+          updated_at: string | null
+        }
+        Insert: {
+          admin_id: string
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          palavras_chave?: string[] | null
+          respostas_padrao?: string[] | null
+          tipo_contexto: string
+          updated_at?: string | null
+        }
+        Update: {
+          admin_id?: string
+          ativo?: boolean | null
+          created_at?: string | null
+          descricao?: string | null
+          id?: string
+          palavras_chave?: string[] | null
+          respostas_padrao?: string[] | null
+          tipo_contexto?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      conversation_history_analysis: {
+        Row: {
+          admin_id: string
+          contextos_identificados: Json | null
+          created_at: string | null
+          id: string
+          mensagens_aprovadas: number | null
+          mensagens_rejeitadas: number | null
+          padroes_descobertos: Json | null
+          periodo_fim: string
+          periodo_inicio: string
+          qualidade_geral: number | null
+          status: string | null
+          total_mensagens_analisadas: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          admin_id: string
+          contextos_identificados?: Json | null
+          created_at?: string | null
+          id?: string
+          mensagens_aprovadas?: number | null
+          mensagens_rejeitadas?: number | null
+          padroes_descobertos?: Json | null
+          periodo_fim: string
+          periodo_inicio: string
+          qualidade_geral?: number | null
+          status?: string | null
+          total_mensagens_analisadas?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          admin_id?: string
+          contextos_identificados?: Json | null
+          created_at?: string | null
+          id?: string
+          mensagens_aprovadas?: number | null
+          mensagens_rejeitadas?: number | null
+          padroes_descobertos?: Json | null
+          periodo_fim?: string
+          periodo_inicio?: string
+          qualidade_geral?: number | null
+          status?: string | null
+          total_mensagens_analisadas?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       mensagens: {
         Row: {
           id: string
@@ -180,6 +264,97 @@ export type Database = {
             columns: ["usuario_id"]
             isOneToOne: false
             referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      response_feedback: {
+        Row: {
+          contexto_conversa: string | null
+          created_at: string | null
+          feedback_tipo: string | null
+          id: string
+          mensagem_enviada: string
+          observacoes: string | null
+          timestamp_resposta: string | null
+          usuario_id: string | null
+        }
+        Insert: {
+          contexto_conversa?: string | null
+          created_at?: string | null
+          feedback_tipo?: string | null
+          id?: string
+          mensagem_enviada: string
+          observacoes?: string | null
+          timestamp_resposta?: string | null
+          usuario_id?: string | null
+        }
+        Update: {
+          contexto_conversa?: string | null
+          created_at?: string | null
+          feedback_tipo?: string | null
+          id?: string
+          mensagem_enviada?: string
+          observacoes?: string | null
+          timestamp_resposta?: string | null
+          usuario_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "response_feedback_usuario_id_fkey"
+            columns: ["usuario_id"]
+            isOneToOne: false
+            referencedRelation: "usuarios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      training_candidates: {
+        Row: {
+          analysis_id: string | null
+          aprovado: boolean | null
+          confianca_admin: number | null
+          contexto: string | null
+          created_at: string | null
+          id: string
+          mensagem_original: string
+          motivo_aprovacao: string | null
+          qualidade_estimada: number | null
+          timestamp_original: string | null
+          tipo_resposta: string | null
+        }
+        Insert: {
+          analysis_id?: string | null
+          aprovado?: boolean | null
+          confianca_admin?: number | null
+          contexto?: string | null
+          created_at?: string | null
+          id?: string
+          mensagem_original: string
+          motivo_aprovacao?: string | null
+          qualidade_estimada?: number | null
+          timestamp_original?: string | null
+          tipo_resposta?: string | null
+        }
+        Update: {
+          analysis_id?: string | null
+          aprovado?: boolean | null
+          confianca_admin?: number | null
+          contexto?: string | null
+          created_at?: string | null
+          id?: string
+          mensagem_original?: string
+          motivo_aprovacao?: string | null
+          qualidade_estimada?: number | null
+          timestamp_original?: string | null
+          tipo_resposta?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_candidates_analysis_id_fkey"
+            columns: ["analysis_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_history_analysis"
             referencedColumns: ["id"]
           },
         ]

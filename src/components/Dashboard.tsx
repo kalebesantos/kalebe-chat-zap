@@ -12,6 +12,7 @@ import ActiveConversationsManager from '@/components/ActiveConversationsManager'
 import StyleLearningManager from '@/components/StyleLearningManager';
 import BotConfigManager from '@/components/BotConfigManager';
 import LearningProfileDashboard from '@/components/LearningProfileDashboard';
+import HistoryAnalysisManager from '@/components/HistoryAnalysisManager';
 import { useToast } from '@/hooks/use-toast';
 
 interface DashboardProps {
@@ -67,7 +68,7 @@ const Dashboard = ({ session }: DashboardProps) => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 max-w-4xl">
+          <TabsList className="grid w-full grid-cols-7 max-w-5xl">
             <TabsTrigger value="config" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               Configurações
@@ -87,6 +88,10 @@ const Dashboard = ({ session }: DashboardProps) => {
             <TabsTrigger value="learning" className="flex items-center gap-2">
               <Brain className="h-4 w-4" />
               Perfil de Aprendizado
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              Histórico Inteligente
             </TabsTrigger>
             <TabsTrigger value="messages" className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
@@ -122,6 +127,10 @@ const Dashboard = ({ session }: DashboardProps) => {
 
           <TabsContent value="learning" className="space-y-6">
             <LearningProfileDashboard />
+          </TabsContent>
+
+          <TabsContent value="history" className="space-y-6">
+            <HistoryAnalysisManager />
           </TabsContent>
 
           <TabsContent value="messages" className="space-y-6">
