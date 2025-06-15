@@ -14,7 +14,32 @@ const BotConfigManager = () => {
   const [totalUsuarios, setTotalUsuarios] = useState(0);
   const [conversasAtivas, setConversasAtivas] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [botOnline, setBotOnline] = useState(false);
   const { toast } = useToast();
+
+  const buscarStatusBot = async () => {
+    // Busca o status na tabela bot_status (com fallback; se não existe, sempre retorna off)
+    try {
+      const { data, error } = await supabase
+        .from('bot_status')
+        .select('online, updated_at')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        setBotOnline(false);
+        console.error('Erro ao buscar status do bot:', error);
+      } else if (data && data.online === true) {
+        setBotOnline(true);
+      } else {
+        setBotOnline(false);
+      }
+    } catch (err) {
+      setBotOnline(false);
+      console.error('Erro ao buscar status do bot:', err);
+    }
+  };
 
   const buscarConfiguracoes = async () => {
     try {
@@ -59,6 +84,7 @@ const BotConfigManager = () => {
       setTotalUsuarios(usuariosCount || 0);
       setConversasAtivas(conversasCount || 0);
 
+      await buscarStatusBot();
     } catch (error) {
       console.error('Erro ao buscar configurações:', error);
       toast({
@@ -173,6 +199,12 @@ const BotConfigManager = () => {
 
   useEffect(() => {
     buscarConfiguracoes();
+
+    // Atualiza status do bot a cada 12 segundos
+    const timer = setInterval(() => {
+      buscarStatusBot();
+    }, 12000);
+    return () => clearInterval(timer);
   }, []);
 
   if (loading) {
@@ -192,6 +224,17 @@ const BotConfigManager = () => {
             <div className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
               Status do Bot
+              <span>
+                {botOnline ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200">
+                    <span className="w-2 h-2 bg-green-500 rounded-full inline-block" /> Online
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold border border-gray-200">
+                    <span className="w-2 h-2 bg-gray-400 rounded-full inline-block" /> Offline
+                  </span>
+                )}
+              </span>
             </div>
             <Button variant="outline" size="sm" onClick={buscarConfiguracoes}>
               <RefreshCw className="h-4 w-4 mr-2" />
