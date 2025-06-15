@@ -117,13 +117,14 @@ client.on('ready', async () => {
   }
 });
 
-// NOVO: função para aprendizado automático do administrador
-async function aprenderComConversasDoAdmin(adminNumero) {
+// NOVA: função para aprendizado automático do administrador
+async function aprenderComConversasDoAdmin(adminNumero, client) {
   try {
     console.log(`🤖 Aprendizado: Importando conversas do administrador (${adminNumero})...`);
-    // Importa todas conversas do administrador
-    // A função importarMensagensWhatsApp deve ler/exportar e analisar estilo automaticamente
-    const textoExport = await coletarConversasDoWhatsApp(adminNumero);
+
+    // NOVO: Passa o client para coletar conversas reais
+    const textoExport = await coletarConversasDoWhatsApp(adminNumero, client);
+
     if (textoExport) {
       const total = await importarMensagensWhatsApp(adminNumero, textoExport);
       if (total > 0) {
@@ -140,11 +141,33 @@ async function aprenderComConversasDoAdmin(adminNumero) {
 }
 
 // Dummy de coleta, deve ser implementado de acordo com as APIs permitidas / export do WhatsApp Web
-async function coletarConversasDoWhatsApp(adminNumero) {
-  // No WhatsApp Web, não existe API oficial para exportar todas as conversas automaticamente.
-  // Aqui você pode conectar a uma lógica customizada, scraping, ou ler de um arquivo de export.
-  // Agora retorna null, apenas exemplo.
-  return null;
+async function coletarConversasDoWhatsApp(adminNumero, client) {
+  try {
+    let textoExport = '';
+    // Busca todos os chats
+    const chats = await client.getChats();
+    for (const chat of chats) {
+      // Se o admin está nesse chat, coleta mensagens onde o admin é o remetente
+      // Só importa chats privados e grupos onde admin participa
+      if (
+        chat.isGroup === false && chat.id.user === adminNumero // chat 1:1 do admin consigo mesmo ou similar
+        || (chat.isGroup && chat.participants.some(p => p.id.user === adminNumero))
+      ) {
+        // Buscar últimas 200 mensagens (pode parametrizar)
+        const msgs = await chat.fetchMessages({ limit: 200 });
+        for (const m of msgs) {
+          // Somente mensagens enviadas pelo admin
+          if (m.from === (adminNumero + '@c.us')) {
+            textoExport += `${m.timestamp ? (new Date(m.timestamp * 1000).toLocaleString('pt-BR')) : ''} - ${adminNumero}: ${m.body}\n`;
+          }
+        }
+      }
+    }
+    return textoExport.length > 0 ? textoExport : null;
+  } catch (error) {
+    console.error('❌ Erro ao coletar conversas do WhatsApp:', error);
+    return null;
+  }
 }
 
 // Adiciona manipulação da tecla "q" para encerrar
@@ -181,10 +204,10 @@ async function encerrarBotComStatus() {
 // Evento: Autenticação bem-sucedida
 client.on('authenticated', async () => {
   setBotStatus('authenticated');
-  // NOVO: iniciando aprendizado automático assim que autenticado
+  // Aprendizado automático assim que autenticado (com coleta real)
   const adminNumero = process.env.ADMIN_NUMERO || null;
   if (adminNumero) {
-    await aprenderComConversasDoAdmin(adminNumero);
+    await aprenderComConversasDoAdmin(adminNumero, client);
   } else {
     console.log('⚠️ Variável ADMIN_NUMERO não definida. Defina no .env para aprendizado automático.');
   }
