@@ -7,6 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Settings, Bot, Users, MessageSquare, RefreshCw } from 'lucide-react';
+import { StatusBadge } from './common/StatusBadge';
+import { MetricCard } from './common/MetricCard';
+import { useBotOnlineStatus } from '@/hooks/useBotOnlineStatus';
 
 const BotConfigManager = () => {
   const [modoRestrito, setModoRestrito] = useState(false);
@@ -14,34 +17,8 @@ const BotConfigManager = () => {
   const [totalUsuarios, setTotalUsuarios] = useState(0);
   const [conversasAtivas, setConversasAtivas] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [botOnline, setBotOnline] = useState<'online' | 'offline' | 'unknown'>('unknown');
-  const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
+  const { status: botOnline, refresh: refreshBotStatus } = useBotOnlineStatus(10000);
   const { toast } = useToast();
-
-  const buscarStatusBot = async () => {
-    try {
-      // Busca um registro de 'bot_online' na tabela bot_config
-      const { data, error } = await supabase
-        .from('bot_config')
-        .select('valor')
-        .eq('chave', 'bot_online')
-        .maybeSingle();
-
-      if (error) {
-        setBotOnline('unknown');
-        console.error('Erro ao buscar status do bot:', error);
-      } else if (data && data.valor === 'true') {
-        setBotOnline('online');
-      } else if (data && data.valor === 'false') {
-        setBotOnline('offline');
-      } else {
-        setBotOnline('unknown');
-      }
-    } catch (err) {
-      setBotOnline('unknown');
-      console.error('Erro ao buscar status do bot:', err);
-    }
-  };
 
   const buscarConfiguracoes = async () => {
     try {
@@ -86,7 +63,6 @@ const BotConfigManager = () => {
       setTotalUsuarios(usuariosCount || 0);
       setConversasAtivas(conversasCount || 0);
 
-      await buscarStatusBot();
     } catch (error) {
       console.error('Erro ao buscar configurações:', error);
       toast({
@@ -201,17 +177,6 @@ const BotConfigManager = () => {
 
   useEffect(() => {
     buscarConfiguracoes();
-
-    // Atualiza status a cada 10 segundos, para garantir que o painel está sempre atualizado.
-    const timer = setInterval(() => {
-      buscarStatusBot();
-    }, 10000);
-    setIntervalId(timer);
-
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-      clearInterval(timer);
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -232,21 +197,7 @@ const BotConfigManager = () => {
             <div className="flex items-center gap-2">
               <Bot className="h-5 w-5" />
               Status do Bot
-              <span>
-                {botOnline === 'online' ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 text-xs font-semibold border border-green-200 animate-pulse">
-                    <span className="w-2 h-2 bg-green-500 rounded-full inline-block" /> Online
-                  </span>
-                ) : botOnline === 'offline' ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-xs font-semibold border border-gray-200">
-                    <span className="w-2 h-2 bg-gray-400 rounded-full inline-block animate-pulse opacity-70" /> Offline
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 text-xs font-semibold border border-yellow-200">
-                    <span className="w-2 h-2 bg-yellow-400 rounded-full inline-block animate-pulse opacity-70" /> Desconhecido
-                  </span>
-                )}
-              </span>
+              <StatusBadge status={botOnline} />
             </div>
             <Button variant="outline" size="sm" onClick={buscarConfiguracoes}>
               <RefreshCw className="h-4 w-4 mr-2" />
@@ -255,45 +206,29 @@ const BotConfigManager = () => {
           </CardTitle>
           <CardDescription>
             <span>
-              O status do bot é atualizado automaticamente a cada 10 segundos.
+              O status do bot é atualizado automaticamente a cada 10 segundos.<br />
+              {botOnline === "online" ? (
+                <span className="text-green-700 font-medium">Bot conectado e pronto para interagir.</span>
+              ) : botOnline === "offline" ? (
+                <span className="text-gray-700 font-medium">Bot desconectado — confira se a integração do WhatsApp está ativa.</span>
+              ) : (
+                <span className="text-yellow-800 font-medium">Status desconhecido — reabra a tela se persistir.</span>
+              )}
             </span>
-            <br />
-            {botOnline === 'online'
-              ? <span className="text-green-700 font-medium">Bot conectado e pronto para interagir.</span>
-              : botOnline === 'offline'
-                ? <span className="text-gray-700 font-medium">Bot desconectado — confira se a integração do WhatsApp está ativa.</span>
-                : <span className="text-yellow-800 font-medium">Status desconhecido — reabra a tela se persistir.</span>
-            }
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">{totalUsuarios}</div>
-              <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
-                <Users className="h-4 w-4" />
-                Usuários Total
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">{conversasAtivas}</div>
-              <div className="text-sm text-gray-600 flex items-center justify-center gap-1">
-                <MessageSquare className="h-4 w-4" />
-                Conversas Ativas
-              </div>
-            </div>
-            <div className="text-center">
-              <Badge variant={modoRestrito ? "destructive" : "default"} className="text-lg py-1">
-                {modoRestrito ? "Restrito" : "Aberto"}
-              </Badge>
-              <div className="text-sm text-gray-600 mt-1">Modo Atual</div>
-            </div>
-            <div className="text-center">
-              <Badge variant={aprendizadoAtivo ? "default" : "secondary"} className="text-lg py-1">
-                {aprendizadoAtivo ? "Ativo" : "Inativo"}
-              </Badge>
-              <div className="text-sm text-gray-600 mt-1">Aprendizado IA</div>
-            </div>
+            <MetricCard value={totalUsuarios} label="Usuários Total" colorClass="text-blue-600" icon={<Users className="h-4 w-4" />} />
+            <MetricCard value={conversasAtivas} label="Conversas Ativas" colorClass="text-green-600" icon={<MessageSquare className="h-4 w-4" />} />
+            <MetricCard
+              value={<Badge variant={modoRestrito ? "destructive" : "default"} className="text-lg py-1">{modoRestrito ? "Restrito" : "Aberto"}</Badge>}
+              label="Modo Atual"
+            />
+            <MetricCard
+              value={<Badge variant={aprendizadoAtivo ? "default" : "secondary"} className="text-lg py-1">{aprendizadoAtivo ? "Ativo" : "Inativo"}</Badge>}
+              label="Aprendizado IA"
+            />
           </div>
         </CardContent>
       </Card>
