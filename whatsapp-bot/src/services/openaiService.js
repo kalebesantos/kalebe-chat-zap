@@ -3,66 +3,68 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const openRouterApiKey = process.env.OPENROUTER_API_KEY;
-const openRouterBaseUrl = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1';
-
-if (!openRouterApiKey || !openRouterBaseUrl) {
-  throw new Error('⚠️ Variáveis de ambiente OPENROUTER_API_KEY ou OPENROUTER_BASE_URL não estão configuradas');
-}
-
-// Inicializa o cliente OpenAI para OpenRouter
 const openai = new OpenAI({
-  apiKey: openRouterApiKey,
-  baseURL: openRouterBaseUrl,
-  defaultHeaders: {
-    'HTTP-Referer': 'https://seusite.com', // Substitua pelo seu domínio real
-    'X-Title': 'KalebeChatZap'
-  }
+  apiKey: process.env.OPENAI_API_KEY,
 });
 
 /**
- * Gera uma resposta com base nas mensagens e estilo fornecidos
- * @param {Array} historico - Histórico de mensagens em formato OpenAI
- * @param {string} estiloPersonalizado - Texto com instruções de estilo (ex: “responda de forma engraçada”)
- * @param {string} modelo - Nome do modelo (default: 'openchat')
+ * Gera uma resposta baseada no histórico e estilo personalizado
+ * @param {Object[]} historico - Histórico de mensagens (role: 'user' | 'assistant', content: string)
+ * @param {string} estiloPersonalizado - Estilo de resposta opcional
+ * @param {string} modelo - Modelo da OpenAI a ser usado (ex: 'gpt-3.5-turbo')
+ * @returns {Promise<string>} - Resposta gerada
  */
-export async function gerarRespostaPersonalizada({
-  historico,
-  estiloPersonalizado = '',
-  modelo = 'openchat'
-}) {
+export async function gerarResposta({ historico, estiloPersonalizado = '', modelo = 'gpt-3.5-turbo' }) {
   try {
-    const promptEstilo = estiloPersonalizado.trim()
-      ? `Adote o seguinte estilo ao responder: ${estiloPersonalizado}`
-      : 'Adote um estilo de comunicação natural, informal e simpático.';
+    const mensagens = [];
 
-    const completion = await openai.chat.completions.create({
+    if (estiloPersonalizado) {
+      mensagens.push({
+        role: 'system',
+        content: `Adote o seguinte estilo de resposta para conversar com o usuário: ${estiloPersonalizado}`,
+      });
+    }
+
+    mensagens.push(...historico);
+
+    const resposta = await openai.chat.completions.create({
       model,
-      messages: [
-        { role: 'system', content: promptEstilo },
-        ...historico
-      ],
+      messages: mensagens,
       temperature: 0.7,
-      max_tokens: 500
+      max_tokens: 800,
     });
 
-    const resposta = completion.choices[0].message.content.trim();
-    return resposta;
+    return resposta.choices[0].message.content;
   } catch (error) {
-    console.error('❌ Erro ao gerar resposta personalizada:', error);
-    return 'Desculpe, houve um erro ao gerar a resposta. 😔';
+    console.error('❌ Erro ao gerar resposta:', error);
+    return 'Desculpe, ocorreu um erro ao gerar a resposta.';
   }
 }
 
 /**
- * Gera uma resposta simples sem histórico, apenas com base em uma pergunta
+ * Gera uma resposta simples (sem histórico/contexto)
+ * @param {string} mensagem - Mensagem simples
+ * @returns {Promise<string>} - Resposta gerada
  */
-export async function gerarRespostaSimples(pergunta, estilo = '', modelo = 'openchat') {
-  return gerarRespostaPersonalizada({
-    historico: [{ role: 'user', content: pergunta }],
-    estiloPersonalizado: estilo,
-    modelo
-  });
+export async function gerarRespostaSimples(mensagem) {
+  try {
+    const resposta = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'user',
+          content: mensagem,
+        },
+      ],
+      temperature: 0.7,
+      max_tokens: 500,
+    });
+
+    return resposta.choices[0].message.content;
+  } catch (error) {
+    console.error('❌ Erro ao gerar resposta simples:', error);
+    return 'Erro ao gerar resposta.';
+  }
 }
 
 export default openai;
