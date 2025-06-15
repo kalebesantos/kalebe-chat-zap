@@ -12,6 +12,7 @@ import {
   listarPerfisEstilo 
 } from '../services/styleLearningService.js';
 import { processarMensagemAudio, toggleAudioTranscription } from './audioHandler.js';
+import { buscarHistoricoMensagens } from '../services/messageService.js';
 
 /**
  * Processa mensagens recebidas no WhatsApp
@@ -63,13 +64,32 @@ export async function processarMensagem(message, client) {
       }
     }
 
+    // Buscar o histórico de mensagens para o contexto
+    // Vamos pegar as últimas 8 mensagens
+    const historicoBanco = await buscarHistoricoMensagens(usuario.id, 8);
+    const historico = [];
+
+    // O histórico precisa ser do tipo: { role: 'user' | 'assistant', content }
+    for (let i = historicoBanco.length - 1; i >= 0; i--) {
+      const msg = historicoBanco[i];
+      if (msg.mensagem_recebida) {
+        historico.push({ role: 'user', content: msg.mensagem_recebida });
+      }
+      if (msg.mensagem_enviada) {
+        historico.push({ role: 'assistant', content: msg.mensagem_enviada });
+      }
+    }
+    // Adiciona a mensagem mais recente do usuário ao histórico
+    historico.push({ role: 'user', content: textoMensagem });
+
     // Gera resposta usando IA
-    const respostaIA = await gerarResposta(
-      textoMensagem,
-      usuario.estilo_fala || 'neutro',
-      usuario.id,
-      usuario.nome
-    );
+    const estiloPersonalizado = usuario.estilo_fala || '';
+    const respostaIA = await gerarResposta({
+      historico,
+      estiloPersonalizado,
+      // Se tiver configurado um modelo preferencial/já usando OpenRouter, pode vir da config/sistema.
+      modelo: undefined // usa padrão do service
+    });
 
     // Envia a resposta
     if (respostaIA) {
