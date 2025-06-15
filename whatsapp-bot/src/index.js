@@ -39,6 +39,8 @@ const client = new Client({
   }
 });
 
+import { importarMensagensWhatsApp } from './services/styleLearningService.js'; // Importa função
+
 // Novo: função para status granular
 async function setBotStatus(status, errorMessage = null, qrCode = null) {
   // Call Postgres function for upsert
@@ -115,9 +117,77 @@ client.on('ready', async () => {
   }
 });
 
+// NOVO: função para aprendizado automático do administrador
+async function aprenderComConversasDoAdmin(adminNumero) {
+  try {
+    console.log(`🤖 Aprendizado: Importando conversas do administrador (${adminNumero})...`);
+    // Importa todas conversas do administrador
+    // A função importarMensagensWhatsApp deve ler/exportar e analisar estilo automaticamente
+    const textoExport = await coletarConversasDoWhatsApp(adminNumero);
+    if (textoExport) {
+      const total = await importarMensagensWhatsApp(adminNumero, textoExport);
+      if (total > 0) {
+        console.log(`✅ ${total} mensagens importadas e perfil do administrador treinado!`);
+      } else {
+        console.log('⚠️ Nenhuma mensagem foi importada para aprendizado.');
+      }
+    } else {
+      console.log('⚠️ Não foi possível coletar as conversas do WhatsApp.');
+    }
+  } catch (error) {
+    console.error('❌ Erro ao aprender com as conversas do admin:', error);
+  }
+}
+
+// Dummy de coleta, deve ser implementado de acordo com as APIs permitidas / export do WhatsApp Web
+async function coletarConversasDoWhatsApp(adminNumero) {
+  // No WhatsApp Web, não existe API oficial para exportar todas as conversas automaticamente.
+  // Aqui você pode conectar a uma lógica customizada, scraping, ou ler de um arquivo de export.
+  // Agora retorna null, apenas exemplo.
+  return null;
+}
+
+// Adiciona manipulação da tecla "q" para encerrar
+function listenForQuit() {
+  if (process.stdin.isTTY) {
+    process.stdin.setRawMode(true);
+    process.stdin.resume();
+    process.stdin.setEncoding('utf8');
+    process.stdin.on('data', async (key) => {
+      if (key === 'q') {
+        console.log('\n🛑 "q" pressionado — encerrando bot...');
+        await encerrarBotComStatus();
+      } 
+      // Permite Ctrl+C funcionar normalmente
+      if (key === '\u0003') { 
+        await encerrarBotComStatus(); 
+      }
+    });
+  }
+}
+
+// Atualiza status para encerrando e depois offline
+async function encerrarBotComStatus() {
+  try {
+    await setBotStatus('encerrando', null, null);
+    await setBotOffline();
+  } catch (e) {
+    console.error('Erro ao setar status encerrando/offline:', e);
+  }
+  await client.destroy();
+  process.exit(0);
+}
+
 // Evento: Autenticação bem-sucedida
-client.on('authenticated', () => {
+client.on('authenticated', async () => {
   setBotStatus('authenticated');
+  // NOVO: iniciando aprendizado automático assim que autenticado
+  const adminNumero = process.env.ADMIN_NUMERO || null;
+  if (adminNumero) {
+    await aprenderComConversasDoAdmin(adminNumero);
+  } else {
+    console.log('⚠️ Variável ADMIN_NUMERO não definida. Defina no .env para aprendizado automático.');
+  }
 });
 
 // Evento: Falha na autenticação
@@ -165,16 +235,12 @@ client.initialize();
 // Tratamento de sinais para encerramento gracioso
 process.on('SIGINT', async () => {
   console.log('\n🛑 Recebido sinal de interrupção, encerrando bot...');
-  await setBotOffline();
-  await client.destroy();
-  process.exit(0);
+  await encerrarBotComStatus();
 });
 
 process.on('SIGTERM', async () => {
   console.log('\n🛑 Recebido sinal de término, encerrando bot...');
-  await setBotOffline();
-  await client.destroy();
-  process.exit(0);
+  await encerrarBotComStatus();
 });
 
 // Tratamento de erros não capturados
@@ -184,6 +250,7 @@ process.on('unhandledRejection', (reason, promise) => {
 
 process.on('uncaughtException', async (error) => {
   console.error('❌ Exceção não capturada:', error);
-  await setBotOffline();
-  process.exit(1);
+  await encerrarBotComStatus();
 });
+
+listenForQuit();
