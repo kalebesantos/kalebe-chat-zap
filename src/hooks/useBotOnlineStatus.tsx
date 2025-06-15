@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -20,6 +19,11 @@ export function useBotOnlineStatus(pollInterval: number = 10000) {
   const [qrCode, setQrCode] = useState<string|null>(null);
   const timerRef = useRef<NodeJS.Timeout>();
 
+  // Helper to check if status is valid
+  function isValidBotStatus(value: any): value is BotStatus {
+    return typeof value === "string" && Object.keys(statusMap).includes(value);
+  }
+
   const fetchStatus = useCallback(async () => {
     const { data, error } = await supabase
       .from("bot_status")
@@ -34,7 +38,9 @@ export function useBotOnlineStatus(pollInterval: number = 10000) {
       setQrCode(null);
       return;
     }
-    setStatus(data.status || "offline");
+
+    // Fix: restrict status to enum values
+    setStatus(isValidBotStatus(data.status) ? data.status : "offline");
     setErrorMessage(data.error_message || null);
     setLastHeartbeat(data.last_heartbeat ? new Date(data.last_heartbeat) : null);
     setQrCode(data.qr_code || null);
