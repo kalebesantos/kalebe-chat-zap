@@ -1,6 +1,6 @@
 
 import { supabase } from '../config/database.js';
-import OpenAI from 'openai';
+import openai from './openaiService.js'; // reutiliza o cliente OpenRouter
 import dotenv from 'dotenv';
 
 dotenv.config();
