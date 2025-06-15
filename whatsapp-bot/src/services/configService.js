@@ -12,7 +12,7 @@ export async function buscarConfiguracao(chave) {
       .from('bot_config')
       .select('valor')
       .eq('chave', chave)
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error(`❌ Erro ao buscar configuração ${chave}:`, error);
@@ -27,20 +27,42 @@ export async function buscarConfiguracao(chave) {
 }
 
 /**
- * Atualiza uma configuração do bot
+ * Atualiza uma configuração do bot usando update/insert apropriado
  * @param {string} chave - Chave da configuração
  * @param {string} valor - Novo valor da configuração
  * @returns {boolean} True se atualizada com sucesso
  */
 export async function atualizarConfiguracao(chave, valor) {
   try {
-    const { error } = await supabase
+    // Primeiro verifica se já existe
+    const { data: existing } = await supabase
       .from('bot_config')
-      .upsert({ 
-        chave, 
-        valor,
-        updated_at: new Date().toISOString()
-      });
+      .select('id')
+      .eq('chave', chave)
+      .maybeSingle();
+
+    let error;
+    if (existing) {
+      // Se existe, atualiza
+      const result = await supabase
+        .from('bot_config')
+        .update({
+          valor,
+          updated_at: new Date().toISOString()
+        })
+        .eq('chave', chave);
+      error = result.error;
+    } else {
+      // Se não existe, insere
+      const result = await supabase
+        .from('bot_config')
+        .insert({
+          chave,
+          valor,
+          updated_at: new Date().toISOString()
+        });
+      error = result.error;
+    }
 
     if (error) {
       console.error(`❌ Erro ao atualizar configuração ${chave}:`, error);

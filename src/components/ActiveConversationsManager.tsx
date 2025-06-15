@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -38,9 +37,9 @@ const ActiveConversationsManager = () => {
         .from('bot_config')
         .select('valor')
         .eq('chave', 'modo_resposta')
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== 'PGRST116') {
+      if (error) {
         console.error('Erro ao buscar modo:', error);
         return;
       }
@@ -88,14 +87,35 @@ const ActiveConversationsManager = () => {
     try {
       const novoModo = restrito ? 'restrito' : 'aberto';
       
-      const { error } = await supabase
+      // Primeiro tenta buscar se já existe
+      const { data: existing } = await supabase
         .from('bot_config')
-        .upsert({
-          chave: 'modo_resposta',
-          valor: novoModo,
-          descricao: 'Modo de resposta do bot (aberto ou restrito)',
-          updated_at: new Date().toISOString()
-        });
+        .select('id')
+        .eq('chave', 'modo_resposta')
+        .maybeSingle();
+
+      let error;
+      if (existing) {
+        // Se existe, atualiza
+        const result = await supabase
+          .from('bot_config')
+          .update({
+            valor: novoModo,
+            updated_at: new Date().toISOString()
+          })
+          .eq('chave', 'modo_resposta');
+        error = result.error;
+      } else {
+        // Se não existe, insere
+        const result = await supabase
+          .from('bot_config')
+          .insert({
+            chave: 'modo_resposta',
+            valor: novoModo,
+            descricao: 'Modo de resposta do bot (aberto ou restrito)'
+          });
+        error = result.error;
+      }
 
       if (error) throw error;
 

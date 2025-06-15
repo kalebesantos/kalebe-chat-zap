@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -26,9 +25,9 @@ const BotConfigManager = () => {
         .from('bot_config')
         .select('valor')
         .eq('chave', 'modo_resposta')
-        .single();
+        .maybeSingle();
 
-      if (modoError && modoError.code !== 'PGRST116') {
+      if (modoError) {
         console.error('Erro ao buscar modo:', modoError);
       } else {
         setModoRestrito(modoData?.valor === 'restrito');
@@ -39,9 +38,9 @@ const BotConfigManager = () => {
         .from('bot_config')
         .select('valor')
         .eq('chave', 'aprendizado_estilo_ativo')
-        .single();
+        .maybeSingle();
 
-      if (aprendizadoError && aprendizadoError.code !== 'PGRST116') {
+      if (aprendizadoError) {
         console.error('Erro ao buscar aprendizado:', aprendizadoError);
       } else {
         setAprendizadoAtivo(aprendizadoData?.valor === 'true');
@@ -76,14 +75,35 @@ const BotConfigManager = () => {
     try {
       const novoModo = restrito ? 'restrito' : 'aberto';
       
-      const { error } = await supabase
+      // Primeiro tenta buscar se já existe
+      const { data: existing } = await supabase
         .from('bot_config')
-        .upsert({
-          chave: 'modo_resposta',
-          valor: novoModo,
-          descricao: 'Modo de resposta do bot (aberto ou restrito)',
-          updated_at: new Date().toISOString()
-        });
+        .select('id')
+        .eq('chave', 'modo_resposta')
+        .maybeSingle();
+
+      let error;
+      if (existing) {
+        // Se existe, atualiza
+        const result = await supabase
+          .from('bot_config')
+          .update({
+            valor: novoModo,
+            updated_at: new Date().toISOString()
+          })
+          .eq('chave', 'modo_resposta');
+        error = result.error;
+      } else {
+        // Se não existe, insere
+        const result = await supabase
+          .from('bot_config')
+          .insert({
+            chave: 'modo_resposta',
+            valor: novoModo,
+            descricao: 'Modo de resposta do bot (aberto ou restrito)'
+          });
+        error = result.error;
+      }
 
       if (error) throw error;
 
@@ -104,14 +124,35 @@ const BotConfigManager = () => {
 
   const alternarAprendizado = async (ativo: boolean) => {
     try {
-      const { error } = await supabase
+      // Primeiro tenta buscar se já existe
+      const { data: existing } = await supabase
         .from('bot_config')
-        .upsert({
-          chave: 'aprendizado_estilo_ativo',
-          valor: ativo ? 'true' : 'false',
-          descricao: 'Controla se o bot está aprendendo estilos de comunicação',
-          updated_at: new Date().toISOString()
-        });
+        .select('id')
+        .eq('chave', 'aprendizado_estilo_ativo')
+        .maybeSingle();
+
+      let error;
+      if (existing) {
+        // Se existe, atualiza
+        const result = await supabase
+          .from('bot_config')
+          .update({
+            valor: ativo ? 'true' : 'false',
+            updated_at: new Date().toISOString()
+          })
+          .eq('chave', 'aprendizado_estilo_ativo');
+        error = result.error;
+      } else {
+        // Se não existe, insere
+        const result = await supabase
+          .from('bot_config')
+          .insert({
+            chave: 'aprendizado_estilo_ativo',
+            valor: ativo ? 'true' : 'false',
+            descricao: 'Controla se o bot está aprendendo estilos de comunicação'
+          });
+        error = result.error;
+      }
 
       if (error) throw error;
 
