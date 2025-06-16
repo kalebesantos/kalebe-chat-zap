@@ -4,11 +4,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { Brain, BarChart3, MessageSquare, TestTube, TrendingUp, Eye, RefreshCw } from 'lucide-react';
+import LearningInsights from './learning/LearningInsights';
 import StyleAnalytics from './StyleAnalytics';
 import TrainingMessages from './TrainingMessages';
 import ResponseSimulator from './ResponseSimulator';
@@ -33,7 +31,7 @@ interface PerfilEstilo {
 const LearningProfileDashboard = () => {
   const [perfilAtivo, setPerfilAtivo] = useState<PerfilEstilo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState('insights');
   const { toast } = useToast();
 
   const buscarPerfilAtivo = async () => {
@@ -175,9 +173,9 @@ const LearningProfileDashboard = () => {
       {/* Tabs de Análise */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="overview" className="flex items-center gap-2">
+          <TabsTrigger value="insights" className="flex items-center gap-2">
             <Eye className="h-4 w-4" />
-            Visão Geral
+            Insights
           </TabsTrigger>
           <TabsTrigger value="analytics" className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -197,56 +195,8 @@ const LearningProfileDashboard = () => {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Palavras Frequentes */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Palavras Mais Usadas</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {palavrasFrequentesLista.slice(0, 10).map((palavra, index) => (
-                    <Badge key={index} variant="secondary" className="text-sm">
-                      {palavra}
-                    </Badge>
-                  )) || <p className="text-gray-500">Nenhuma palavra identificada</p>}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Emojis Frequentes */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Emojis Favoritos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {perfilAtivo.emojis_frequentes?.slice(0, 10).map((emoji, index) => (
-                    <span key={index} className="text-2xl p-2 bg-gray-100 rounded">
-                      {emoji}
-                    </span>
-                  )) || <p className="text-gray-500">Nenhum emoji identificado</p>}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Vocabulário Característico */}
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle className="text-lg">Expressões Características</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-2">
-                  {perfilAtivo.vocabulario_caracteristico?.map((expressao, index) => (
-                    <Badge key={index} variant="outline" className="text-sm">
-                      "{expressao}"
-                    </Badge>
-                  )) || <p className="text-gray-500">Nenhuma expressão característica identificada</p>}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        <TabsContent value="insights">
+          <LearningInsights perfil={perfilAtivo} />
         </TabsContent>
 
         <TabsContent value="analytics">

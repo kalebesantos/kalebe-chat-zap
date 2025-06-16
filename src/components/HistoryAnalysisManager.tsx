@@ -1,12 +1,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Brain, History, TrendingUp, MessageSquare, CheckCircle, XCircle, Clock } from 'lucide-react';
+import AnalysisResults from './analysis/AnalysisResults';
 import TrainingCandidatesReview from './TrainingCandidatesReview';
 import ContextualLearning from './ContextualLearning';
 import ResponseQualityFeedback from './ResponseQualityFeedback';
@@ -30,7 +26,6 @@ const HistoryAnalysisManager = () => {
   const [analyses, setAnalyses] = useState<AnalysisResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
-  const [daysToAnalyze, setDaysToAnalyze] = useState('30');
   const { toast } = useToast();
 
   const carregarAnalises = async () => {
@@ -55,7 +50,7 @@ const HistoryAnalysisManager = () => {
     }
   };
 
-  const analisarHistorico = async () => {
+  const analisarHistorico = async (daysToAnalyze: string) => {
     try {
       setAnalyzing(true);
       
@@ -404,45 +399,6 @@ const HistoryAnalysisManager = () => {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Brain className="h-5 w-5" />
-            Análise Automática do Histórico
-          </CardTitle>
-          <CardDescription>
-            Analise conversas antigas para identificar padrões do administrador e treinar automaticamente o bot
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-4 items-end">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Dias para Analisar</label>
-              <Input
-                type="number"
-                value={daysToAnalyze}
-                onChange={(e) => setDaysToAnalyze(e.target.value)}
-                placeholder="30"
-                className="w-32"
-                min="1"
-                max="365"
-              />
-            </div>
-            <Button 
-              onClick={analisarHistorico} 
-              disabled={analyzing}
-              className="flex items-center gap-2"
-            >
-              <History className="h-4 w-4" />
-              {analyzing ? 'Analisando Padrões...' : 'Iniciar Análise Inteligente'}
-            </Button>
-          </div>
-          <div className="text-sm text-gray-600">
-            💡 A análise inteligente irá identificar automaticamente mensagens que seguem o padrão do administrador e adicioná-las ao treinamento
-          </div>
-        </CardContent>
-      </Card>
-
       <Tabs defaultValue="resultados" className="space-y-6">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="resultados">Resultados</TabsTrigger>
@@ -452,74 +408,12 @@ const HistoryAnalysisManager = () => {
         </TabsList>
 
         <TabsContent value="resultados" className="space-y-4">
-          <div className="grid gap-4">
-            {loading ? (
-              <div className="text-center py-8">Carregando análises...</div>
-            ) : analyses.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                Nenhuma análise encontrada. Inicie uma nova análise acima.
-              </div>
-            ) : (
-              analyses.map((analise) => (
-                <Card key={analise.id}>
-                  <CardContent className="pt-6">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={`${getStatusColor(analise.status)} text-white`}>
-                            {getStatusIcon(analise.status)}
-                            {analise.status}
-                          </Badge>
-                          <span className="text-sm text-gray-600">
-                            {formatarData(analise.created_at)}
-                          </span>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-blue-600">
-                              {analise.total_mensagens_analisadas}
-                            </div>
-                            <div className="text-sm text-gray-600">Mensagens</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-green-600">
-                              {analise.mensagens_aprovadas}
-                            </div>
-                            <div className="text-sm text-gray-600">Aprovadas</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-red-600">
-                              {analise.mensagens_rejeitadas}
-                            </div>
-                            <div className="text-sm text-gray-600">Rejeitadas</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-2xl font-bold text-purple-600">
-                              {analise.qualidade_geral ? `${(analise.qualidade_geral * 100).toFixed(0)}%` : '-'}
-                            </div>
-                            <div className="text-sm text-gray-600">Qualidade</div>
-                          </div>
-                        </div>
-
-                        {analise.padroes_descobertos && (
-                          <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                            <h4 className="font-medium text-sm mb-2">Padrões Descobertos do Administrador</h4>
-                            <div className="text-sm text-gray-600 space-y-1">
-                              <p>📝 Saudações identificadas: {analise.padroes_descobertos.saudacoes?.length || 0}</p>
-                              <p>💰 Respostas sobre preço: {analise.padroes_descobertos.respostas_preco?.length || 0}</p>
-                              <p>📦 Respostas sobre produtos: {analise.padroes_descobertos.respostas_produto?.length || 0}</p>
-                              <p>😊 Emojis usados: {Object.keys(analise.padroes_descobertos.emojis_usados || {}).slice(0, 5).join(' ')}</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
+          <AnalysisResults 
+            analyses={analyses}
+            loading={loading}
+            onStartAnalysis={analisarHistorico}
+            analyzing={analyzing}
+          />
         </TabsContent>
 
         <TabsContent value="candidatos">
