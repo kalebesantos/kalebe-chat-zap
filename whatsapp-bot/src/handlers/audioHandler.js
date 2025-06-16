@@ -1,4 +1,3 @@
-
 import { supabase } from '../config/database.js';
 import { buscarUsuario, criarOuAtualizarUsuario } from '../services/userService.js';
 import { gerarResposta } from '../services/openaiService.js';
@@ -125,14 +124,14 @@ export async function processarMensagemAudio(message, client) {
       const respostaIA = await gerarRespostaParaAudio(usuario.id, resultadoTranscricao.texto);
 
       if (respostaIA) {
-        await client.sendMessage(message.from, `🎤 ${respostaIA}`);
+        await client.sendMessage(message.from, respostaIA); // Removido emoji de microfone para parecer mais natural
         await salvarMensagem(usuario.id, resultadoTranscricao.texto, respostaIA);
         console.log(`✅ Resposta enviada para áudio de ${numeroUsuario}`);
       }
     } else {
       console.error('❌ Falha na transcrição ou texto vazio');
       await client.sendMessage(message.from, 
-        '🎤 Desculpe, não consegui entender o áudio. Tente falar mais claramente ou enviar como texto.');
+        'Não consegui entender o áudio. Pode mandar por texto?');
     }
 
   } catch (error) {
@@ -140,7 +139,7 @@ export async function processarMensagemAudio(message, client) {
     
     try {
       await client.sendMessage(message.from, 
-        '🎤 Ocorreu um erro ao processar seu áudio. Tente novamente em alguns instantes.');
+        'Deu problema com o áudio. Manda por texto que é mais fácil.');
     } catch (sendError) {
       console.error('❌ Erro ao enviar mensagem de erro:', sendError);
     }
@@ -149,7 +148,7 @@ export async function processarMensagemAudio(message, client) {
 
 async function gerarRespostaParaAudio(usuarioId, textoTranscrito) {
   // Buscar histórico de mensagens para contexto
-  const historicoBanco = await buscarHistoricoMensagens(usuarioId, 8);
+  const historicoBanco = await buscarHistoricoMensagens(usuarioId, 6);
   const historico = [];
 
   for (let i = historicoBanco.length - 1; i >= 0; i--) {
@@ -167,16 +166,19 @@ async function gerarRespostaParaAudio(usuarioId, textoTranscrito) {
 
   // Buscar perfil de estilo do admin ativo
   let estiloPersonalizado = '';
+  let exemplosMensagens = [];
   const perfilAdminAtivo = await buscarPerfilEstiloAtivo();
 
-  if (perfilAdminAtivo && perfilAdminAtivo.estilo_resumo) {
-    estiloPersonalizado = perfilAdminAtivo.estilo_resumo;
-    console.log('🧑‍💼 Usando estilo do admin ativo para áudio:', estiloPersonalizado);
+  if (perfilAdminAtivo) {
+    estiloPersonalizado = perfilAdminAtivo.estilo_resumo || '';
+    exemplosMensagens = perfilAdminAtivo.exemplos_mensagens || [];
+    console.log('🧑‍💼 Usando estilo do admin ativo para resposta de áudio');
   }
 
   return await gerarResposta({
     historico,
     estiloPersonalizado,
+    exemplosMensagens,
     modelo: undefined
   });
 }

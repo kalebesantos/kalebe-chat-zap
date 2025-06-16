@@ -35,18 +35,26 @@ export async function analisarEstilo(adminId, nomeAdmin) {
     .eq('admin_id', adminId)
     .order('timestamp', { ascending: false })
     .limit(100);
+    
   if (error || !mensagens || mensagens.length === 0) {
     console.log(`⚠️ Nenhuma mensagem encontrada para ${adminId}`);
     return null;
   }
 
+  console.log(`🔍 Analisando ${mensagens.length} mensagens do admin ${nomeAdmin}`);
+  
   const analise = await analisarEstiloAdmin(mensagens, nomeAdmin);
   if (!analise) return null;
 
-  const exemplosMensagens = mensagens.slice(0, 10).map(m => m.conteudo);
+  // Pegar mais exemplos para melhor aprendizado
+  const exemplosMensagens = mensagens.slice(0, 15).map(m => m.conteudo);
+  
   try {
     await salvarPerfilEstilo(adminId, nomeAdmin, analise, exemplosMensagens, mensagens.length);
-    await atualizarEstiloUsuario(adminId, analise.estilo_resumo);
+    console.log(`✅ Perfil de estilo salvo para ${nomeAdmin}`);
+    console.log(`📝 Tom: ${analise.tom_comunicacao}`);
+    console.log(`🎯 Estilo: ${analise.estilo_resumo?.substring(0, 100)}...`);
+    
     return analise;
   } catch (err) {
     console.error('❌ Erro ao salvar perfil de estilo:', err);
@@ -56,13 +64,27 @@ export async function analisarEstilo(adminId, nomeAdmin) {
 
 export async function importarMensagensWhatsApp(adminId, textoExport) {
   try {
+    console.log(`📥 Importando mensagens do WhatsApp para ${adminId}...`);
+    
     const mensagens = await importarMensagens(adminId, textoExport);
-    if (mensagens.length === 0) return 0;
-    const nomeAdmin = adminId; // Se quiser, aprimorar para buscar pelo nome real
-    const analise = await analisarEstilo(adminId, nomeAdmin);
-    if (analise && analise.estilo_resumo) {
-      await atualizarEstiloUsuario(adminId, analise.estilo_resumo);
+    if (mensagens.length === 0) {
+      console.log('⚠️ Nenhuma mensagem foi importada');
+      return 0;
     }
+
+    console.log(`✅ ${mensagens.length} mensagens importadas com sucesso`);
+    
+    // Automaticamente analisa o estilo após importar
+    const nomeAdmin = adminId;
+    const analise = await analisarEstilo(adminId, nomeAdmin);
+    
+    if (analise && analise.estilo_resumo) {
+      console.log(`🤖 Perfil de estilo criado automaticamente para ${nomeAdmin}`);
+      // Ativa automaticamente o perfil após análise
+      await ativarPerfilEstilo(adminId);
+      console.log(`🎯 Perfil ativado - bot agora responderá como ${nomeAdmin}`);
+    }
+    
     return mensagens.length;
   } catch (error) {
     console.error('❌ Erro ao importar mensagens do WhatsApp:', error);
@@ -97,11 +119,13 @@ export async function buscarPerfilEstiloAtivo() {
  */
 export async function ativarPerfilEstilo(adminId) {
   try {
+    // Desativa todos os perfis primeiro
     await supabase
       .from('admin_style_profiles')
       .update({ ativo: false })
       .neq('admin_id', '');
 
+    // Ativa o perfil específico
     const { error } = await supabase
       .from('admin_style_profiles')
       .update({ ativo: true })

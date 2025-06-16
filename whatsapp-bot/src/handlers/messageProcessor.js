@@ -1,4 +1,3 @@
-
 import { criarOuAtualizarUsuario, buscarUsuario } from '../services/userService.js';
 import { salvarMensagem, buscarHistoricoMensagens } from '../services/messageService.js';
 import { gerarResposta } from '../services/openaiService.js';
@@ -49,7 +48,7 @@ export async function processarMensagemTexto(message, client) {
     
     try {
       await client.sendMessage(message.from, 
-        'Desculpe, ocorreu um erro interno. Tente novamente em alguns instantes.');
+        'Opa, deu algum problema aqui. Tenta mandar de novo?');
     } catch (sendError) {
       console.error('❌ Erro ao enviar mensagem de erro:', sendError);
     }
@@ -58,10 +57,10 @@ export async function processarMensagemTexto(message, client) {
 
 async function gerarRespostaComContexto(usuarioId, textoMensagem) {
   // Buscar histórico de mensagens
-  const historicoBanco = await buscarHistoricoMensagens(usuarioId, 8);
+  const historicoBanco = await buscarHistoricoMensagens(usuarioId, 6); // Reduzido para contexto mais focado
   const historico = [];
 
-  // Construir histórico no formato correto
+  // Construir histórico no formato correto (apenas as últimas interações)
   for (let i = historicoBanco.length - 1; i >= 0; i--) {
     const msg = historicoBanco[i];
     if (msg.mensagem_recebida) {
@@ -77,16 +76,24 @@ async function gerarRespostaComContexto(usuarioId, textoMensagem) {
 
   // Buscar estilo do administrador ativo
   let estiloPersonalizado = '';
+  let exemplosMensagens = [];
   const perfilAdminAtivo = await buscarPerfilEstiloAtivo();
 
-  if (perfilAdminAtivo && perfilAdminAtivo.estilo_resumo) {
-    estiloPersonalizado = perfilAdminAtivo.estilo_resumo;
-    console.log('🧑‍💼 Usando estilo do admin ativo:', estiloPersonalizado);
+  if (perfilAdminAtivo) {
+    estiloPersonalizado = perfilAdminAtivo.estilo_resumo || '';
+    exemplosMensagens = perfilAdminAtivo.exemplos_mensagens || [];
+    
+    console.log('🧑‍💼 Usando perfil do admin ativo para resposta mais humana');
+    console.log(`📝 Estilo: ${estiloPersonalizado}`);
+    console.log(`📚 Exemplos disponíveis: ${exemplosMensagens.length}`);
+  } else {
+    console.log('⚠️ Nenhum perfil de admin ativo - usando modo padrão');
   }
 
   return await gerarResposta({
     historico,
     estiloPersonalizado,
+    exemplosMensagens,
     modelo: undefined
   });
 }

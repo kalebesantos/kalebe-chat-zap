@@ -4,6 +4,7 @@ import qrcode from 'qrcode-terminal';
 import dotenv from 'dotenv';
 import { processarMensagem } from './handlers/messageHandler.js';
 import { supabase } from './config/database.js';
+import { salvarAdminConfig, buscarAdminNumero } from './services/adminConfigService.js';
 
 // Polyfill para FormData (necessário para transcrição de áudio)
 import { FormData } from 'formdata-polyfill/esm.min.js';
@@ -12,14 +13,15 @@ globalThis.FormData = FormData;
 // Carrega variáveis de ambiente
 dotenv.config();
 
-console.log('🚀 Iniciando Bot WhatsApp com suporte a transcrição de áudio...');
+console.log('🚀 Iniciando Bot WhatsApp com aprendizado de estilo humano...');
+console.log('🧠 O bot aprenderá a responder como você!');
 
 // NOVO: Mensagem clara sobre encerrar o bot com 'q'
 console.log('ℹ️ Pressione "q" a qualquer momento no terminal para ENCERRAR o bot.\n');
 
 // Verificar se a chave da OpenAI está configurada
 if (!process.env.OPENAI_API_KEY) {
-  console.warn('⚠️ OPENAI_API_KEY não configurada. Transcrição de áudio não funcionará.');
+  console.warn('⚠️ OPENAI_API_KEY não configurada. O bot não funcionará sem ela.');
 }
 
 // Cria o cliente WhatsApp com autenticação local
@@ -42,11 +44,10 @@ const client = new Client({
   }
 });
 
-import { importarMensagensWhatsApp } from './services/styleLearningService.js'; // Importa função
+import { importarMensagensWhatsApp } from './services/styleLearningService.js';
 
 // Novo: função para status granular
 async function setBotStatus(status, errorMessage = null, qrCode = null) {
-  // Call Postgres function for upsert
   try {
     await supabase.rpc('upsert_bot_status', {
       p_status: status,
@@ -100,6 +101,7 @@ client.on('ready', async () => {
   setBotStatus('online');
   startHeartbeat();
   console.log('✅ Bot WhatsApp conectado e pronto!');
+  console.log('🧠 Sistema de aprendizado de estilo ativo!');
   console.log('🎤 Suporte a transcrição de áudio ativo!');
   console.log('🤖 Aguardando mensagens...\n');
   
@@ -123,49 +125,59 @@ client.on('ready', async () => {
 // NOVA: função para aprendizado automático do administrador
 async function aprenderComConversasDoAdmin(adminNumero, client) {
   try {
-    console.log(`🤖 Aprendizado: Importando conversas do administrador (${adminNumero})...`);
+    console.log(`🤖 Iniciando aprendizado automático para ${adminNumero}...`);
 
-    // NOVO: Passa o client para coletar conversas reais
+    // Coleta conversas do WhatsApp Web
     const textoExport = await coletarConversasDoWhatsApp(adminNumero, client);
 
     if (textoExport) {
       const total = await importarMensagensWhatsApp(adminNumero, textoExport);
       if (total > 0) {
-        console.log(`✅ ${total} mensagens importadas e perfil do administrador treinado!`);
+        console.log(`✅ ${total} mensagens analisadas e perfil criado!`);
+        console.log(`🎯 Bot agora responderá imitando o estilo de ${adminNumero}`);
       } else {
-        console.log('⚠️ Nenhuma mensagem foi importada para aprendizado.');
+        console.log('⚠️ Nenhuma mensagem foi encontrada para aprendizado.');
+        console.log('💡 Dica: Use os comandos /adicionar_msg ou /processar_export para treinar o bot');
       }
     } else {
-      console.log('⚠️ Não foi possível coletar as conversas do WhatsApp.');
+      console.log('⚠️ Não foi possível coletar conversas automaticamente.');
+      console.log('💡 Use /adicionar_msg [sua mensagem] para ensinar o bot seu estilo');
     }
   } catch (error) {
     console.error('❌ Erro ao aprender com as conversas do admin:', error);
   }
 }
 
-// Dummy de coleta, deve ser implementado de acordo com as APIs permitidas / export do WhatsApp Web
+// Coleta mensagens do admin de conversas existentes
 async function coletarConversasDoWhatsApp(adminNumero, client) {
   try {
     let textoExport = '';
+    console.log(`🔍 Buscando mensagens de ${adminNumero} nas conversas...`);
+    
     // Busca todos os chats
     const chats = await client.getChats();
+    let mensagensEncontradas = 0;
+    
     for (const chat of chats) {
-      // Se o admin está nesse chat, coleta mensagens onde o admin é o remetente
-      // Só importa chats privados e grupos onde admin participa
-      if (
-        chat.isGroup === false && chat.id.user === adminNumero // chat 1:1 do admin consigo mesmo ou similar
-        || (chat.isGroup && chat.participants.some(p => p.id.user === adminNumero))
-      ) {
-        // Buscar últimas 200 mensagens (pode parametrizar)
-        const msgs = await chat.fetchMessages({ limit: 200 });
+      try {
+        // Buscar mensagens recentes (últimas 50 por chat)
+        const msgs = await chat.fetchMessages({ limit: 50 });
+        
         for (const m of msgs) {
           // Somente mensagens enviadas pelo admin
-          if (m.from === (adminNumero + '@c.us')) {
-            textoExport += `${m.timestamp ? (new Date(m.timestamp * 1000).toLocaleString('pt-BR')) : ''} - ${adminNumero}: ${m.body}\n`;
+          if (m.from === (adminNumero + '@c.us') && m.body && m.body.trim()) {
+            const timestamp = m.timestamp ? new Date(m.timestamp * 1000).toLocaleString('pt-BR') : new Date().toLocaleString('pt-BR');
+            textoExport += `${timestamp} - ${adminNumero}: ${m.body}\n`;
+            mensagensEncontradas++;
           }
         }
+      } catch (chatError) {
+        // Ignora erros de chats específicos
+        continue;
       }
     }
+    
+    console.log(`📊 ${mensagensEncontradas} mensagens encontradas para análise`);
     return textoExport.length > 0 ? textoExport : null;
   } catch (error) {
     console.error('❌ Erro ao coletar conversas do WhatsApp:', error);
@@ -195,7 +207,9 @@ function listenForQuit() {
 // Atualiza status para encerrando e depois offline
 async function encerrarBotComStatus() {
   try {
-    await setBotStatus('encerrando', null, null);
+    console.log('🔄 Encerrando bot graciosamente...');
+    stopHeartbeat();
+    await setBotStatus('offline', 'Bot encerrado pelo usuário');
     await setBotOffline();
   } catch (e) {
     console.error('Erro ao setar status encerrando/offline:', e);
@@ -208,38 +222,24 @@ async function encerrarBotComStatus() {
 client.on('authenticated', async () => {
   setBotStatus('authenticated');
 
-  // NOVO: Detecta automaticamente o número do admin conectado
+  // Detecta automaticamente o número do admin conectado
   try {
     const me = await client.getMe();
     if (me && me.id && me.id.user) {
       const autoAdminNumero = me.id.user;
       await salvarAdminConfig(autoAdminNumero);
-      console.log(`✅ Número do admin automaticamente definido: ${autoAdminNumero}`);
+      console.log(`✅ Admin detectado automaticamente: ${autoAdminNumero}`);
+      
+      // Inicia aprendizado automático
+      setTimeout(() => {
+        aprenderComConversasDoAdmin(autoAdminNumero, client);
+      }, 5000); // Aguarda 5s para garantir que está tudo conectado
+      
     } else {
       console.warn("⚠️ Não foi possível detectar número do admin automaticamente.");
     }
   } catch (e) {
     console.error('❌ Erro ao detectar número do admin:', e);
-  }
-
-  // Sempre tenta buscar ADMIN_NUMERO do banco
-  let adminNumero = process.env.ADMIN_NUMERO || null;
-  if (!adminNumero) {
-    adminNumero = await buscarAdminNumero();
-    if (adminNumero) {
-      console.log(`ℹ️ Número do admin será usado conforme banco: ${adminNumero}`);
-    } else {
-      console.log('⚠️ Número do admin não configurado/não detectado.');
-    }
-  } else {
-    console.log(`ℹ️ Número do admin definido via .env: ${adminNumero}`);
-  }
-
-  // Aprendizado automático com admin detectado
-  if (adminNumero) {
-    await aprenderComConversasDoAdmin(adminNumero, client);
-  } else {
-    console.log('⚠️ Sem número ADMIN_NUMERO definido nem detectado para aprendizado automático.');
   }
 });
 
@@ -255,6 +255,7 @@ client.on('disconnected', async (reason) => {
   stopHeartbeat();
   console.log('⚠️ Cliente desconectado:', reason);
   console.log('🔄 Tentando reconectar...');
+  
   // Atualiza status do bot para offline
   try {
     const { error } = await supabase
