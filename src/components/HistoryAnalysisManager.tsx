@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -64,20 +63,46 @@ const HistoryAnalysisManager = () => {
       const dataInicio = new Date();
       dataInicio.setDate(dataInicio.getDate() - parseInt(daysToAnalyze));
 
-      // Buscar mensagens do período
+      // Buscar TODAS as mensagens do período para análise completa
       const { data: mensagens, error: errorMensagens } = await supabase
         .from('mensagens')
-        .select('*')
+        .select(`
+          *,
+          usuarios:usuario_id (
+            numero_whatsapp,
+            nome
+          )
+        `)
         .gte('timestamp', dataInicio.toISOString())
-        .lte('timestamp', dataFim.toISOString());
+        .lte('timestamp', dataFim.toISOString())
+        .order('timestamp', { ascending: true });
 
       if (errorMensagens) throw errorMensagens;
+
+      // Buscar número do administrador ativo
+      const { data: adminConfig, error: adminError } = await supabase
+        .from('admin_config')
+        .select('numero_whatsapp')
+        .order('criado_em', { ascending: false })
+        .limit(1);
+
+      if (adminError) throw adminError;
+
+      const adminNumero = adminConfig?.[0]?.numero_whatsapp;
+      if (!adminNumero) {
+        toast({
+          title: "Erro",
+          description: "Número do administrador não encontrado. Configure primeiro.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Criar nova análise
       const { data: analise, error: errorAnalise } = await supabase
         .from('conversation_history_analysis')
         .insert({
-          admin_id: 'current_admin', // Substituir pelo ID real do admin
+          admin_id: adminNumero,
           periodo_inicio: dataInicio.toISOString(),
           periodo_fim: dataFim.toISOString(),
           total_mensagens_analisadas: mensagens?.length || 0,
@@ -88,12 +113,12 @@ const HistoryAnalysisManager = () => {
 
       if (errorAnalise) throw errorAnalise;
 
-      // Processar mensagens e identificar candidatos
-      await processarMensagensParaTreinamento(mensagens || [], analise.id);
+      // Processar mensagens e identificar padrões do administrador
+      await processarMensagensDoAdmin(mensagens || [], analise.id, adminNumero);
 
       toast({
         title: "Análise Iniciada",
-        description: `Processando ${mensagens?.length || 0} mensagens dos últimos ${daysToAnalyze} dias.`,
+        description: `Processando ${mensagens?.length || 0} mensagens para aprender padrões do administrador.`,
       });
 
       carregarAnalises();
@@ -109,46 +134,170 @@ const HistoryAnalysisManager = () => {
     }
   };
 
-  const processarMensagensParaTreinamento = async (mensagens: any[], analysisId: string) => {
-    const candidatos = [];
+  const processarMensagensDoAdmin = async (mensagens: any[], analysisId: string, adminNumero: string) => {
+    const candidatosAdmin = [];
+    const padroesEncontrados = {
+      saudacoes: [],
+      despedidas: [],
+      respostas_preco: [],
+      respostas_produto: [],
+      tom_geral: [],
+      palavras_frequentes: {},
+      emojis_usados: {},
+      horarios_ativos: {}
+    };
 
+    // Filtrar mensagens onde o bot respondeu (mensagem_enviada)
+    // e analisar se seguem padrão do administrador
     for (const mensagem of mensagens) {
-      // Algoritmo simples para identificar se é mensagem do admin
-      const confiancaAdmin = calcularConfiancaAdmin(mensagem.mensagem_recebida);
-      
-      if (confiancaAdmin > 0.6) { // Threshold para considerar como possível mensagem do admin
-        candidatos.push({
-          analysis_id: analysisId,
-          mensagem_original: mensagem.mensagem_recebida,
-          contexto: identificarContexto(mensagem),
-          tipo_resposta: classificarTipoResposta(mensagem.mensagem_recebida),
-          confianca_admin: confiancaAdmin,
-          qualidade_estimada: avaliarQualidade(mensagem),
-          timestamp_original: mensagem.timestamp
-        });
+      if (mensagem.mensagem_enviada && mensagem.usuarios?.numero_whatsapp) {
+        const conteudo = mensagem.mensagem_enviada;
+        const contexto = identificarContextoDetalhado(mensagem.mensagem_recebida, conteudo);
+        
+        // Analisar se a resposta parece ter sido feita por administrador
+        const confiancaAdmin = analisarSePareceMensagemAdmin(conteudo);
+        
+        if (confiancaAdmin > 0.4) { // Threshold mais baixo para capturar mais padrões
+          candidatosAdmin.push({
+            analysis_id: analysisId,
+            mensagem_original: conteudo,
+            contexto: contexto.tipo,
+            tipo_resposta: classificarTipoResposta(conteudo),
+            confianca_admin: confiancaAdmin,
+            qualidade_estimada: avaliarQualidadeMensagem(conteudo),
+            timestamp_original: mensagem.timestamp
+          });
+
+          // Coletar padrões para análise
+          coletarPadroesMensagem(conteudo, contexto, padroesEncontrados);
+        }
       }
     }
 
-    if (candidatos.length > 0) {
+    // Salvar candidatos identificados
+    if (candidatosAdmin.length > 0) {
       const { error } = await supabase
         .from('training_candidates')
-        .insert(candidatos);
+        .insert(candidatosAdmin);
 
       if (error) {
         console.error('Erro ao inserir candidatos:', error);
       }
+
+      // Adicionar automaticamente as melhores mensagens para o perfil do admin
+      const melhoresMensagens = candidatosAdmin
+        .filter(c => c.confianca_admin > 0.7 && c.qualidade_estimada > 0.6)
+        .slice(0, 20); // Pegar as 20 melhores
+
+      for (const msg of melhoresMensagens) {
+        await supabase.from('admin_messages').insert({
+          admin_id: adminNumero,
+          conteudo: msg.mensagem_original,
+          fonte: 'analise_automatica',
+          timestamp: new Date().toISOString()
+        });
+      }
     }
 
-    // Atualizar status da análise
+    // Atualizar análise com padrões descobertos
     await supabase
       .from('conversation_history_analysis')
       .update({
         status: 'concluído',
-        contextos_identificados: extrairContextos(mensagens),
-        padroes_descobertos: descobrirPadroes(mensagens),
-        qualidade_geral: calcularQualidadeGeral(candidatos)
+        mensagens_aprovadas: candidatosAdmin.filter(c => c.confianca_admin > 0.7).length,
+        contextos_identificados: extrairContextosEncontrados(padroesEncontrados),
+        padroes_descobertos: padroesEncontrados,
+        qualidade_geral: calcularQualidadeGeral(candidatosAdmin)
       })
       .eq('id', analysisId);
+  };
+
+  const analisarSePareceMensagemAdmin = (mensagem: string): number => {
+    let pontuacao = 0.3; // Base
+    
+    // Características de administrador
+    const indicadoresAdmin = [
+      /\b(obrigado|obrigada|agradeço)\b/i,
+      /\b(disponível|ajudar|atender)\b/i,
+      /\b(empresa|negócio|serviço)\b/i,
+      /\b(produto|item|mercadoria)\b/i,
+      /\b(preço|valor|custo|investimento)\b/i,
+      /\b(qualidade|garantia|confiança)\b/i,
+      /\b(experiência|anos|tempo)\b/i,
+      /\b(cliente|clientela|atendimento)\b/i
+    ];
+
+    indicadoresAdmin.forEach(regex => {
+      if (regex.test(mensagem)) pontuacao += 0.1;
+    });
+
+    // Estrutura profissional
+    if (/^[A-Z]/.test(mensagem)) pontuacao += 0.1;
+    if (/[.!?]$/.test(mensagem.trim())) pontuacao += 0.1;
+    if (mensagem.length > 20 && mensagem.length < 200) pontuacao += 0.1;
+    
+    // Presença de emojis apropriados
+    if (/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{2600}-\u{26FF}]/u.test(mensagem)) {
+      pontuacao += 0.1;
+    }
+
+    return Math.min(pontuacao, 1);
+  };
+
+  const identificarContextoDetalhado = (pergunta: string, resposta: string) => {
+    const perguntaLower = pergunta?.toLowerCase() || '';
+    const respostaLower = resposta?.toLowerCase() || '';
+    
+    if (perguntaLower.includes('olá') || perguntaLower.includes('oi') || perguntaLower.includes('bom dia')) {
+      return { tipo: 'saudacao', detalhes: 'inicial' };
+    }
+    if (perguntaLower.includes('preço') || perguntaLower.includes('valor') || perguntaLower.includes('quanto')) {
+      return { tipo: 'preco', detalhes: 'consulta_valor' };
+    }
+    if (perguntaLower.includes('produto') || perguntaLower.includes('tem') || perguntaLower.includes('vende')) {
+      return { tipo: 'produto', detalhes: 'disponibilidade' };
+    }
+    if (perguntaLower.includes('tchau') || perguntaLower.includes('obrigad') || perguntaLower.includes('bye')) {
+      return { tipo: 'despedida', detalhes: 'final' };
+    }
+    
+    return { tipo: 'geral', detalhes: 'conversa_comum' };
+  };
+
+  const coletarPadroesMensagem = (mensagem: string, contexto: any, padroes: any) => {
+    // Coletar palavras frequentes
+    const palavras = mensagem.toLowerCase().split(/\s+/);
+    palavras.forEach(palavra => {
+      if (palavra.length > 3) {
+        padroes.palavras_frequentes[palavra] = (padroes.palavras_frequentes[palavra] || 0) + 1;
+      }
+    });
+
+    // Coletar emojis
+    const emojis = mensagem.match(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{2600}-\u{26FF}]/gu);
+    if (emojis) {
+      emojis.forEach(emoji => {
+        padroes.emojis_usados[emoji] = (padroes.emojis_usados[emoji] || 0) + 1;
+      });
+    }
+
+    // Categorizar por contexto
+    switch (contexto.tipo) {
+      case 'saudacao':
+        padroes.saudacoes.push(mensagem);
+        break;
+      case 'despedida':
+        padroes.despedidas.push(mensagem);
+        break;
+      case 'preco':
+        padroes.respostas_preco.push(mensagem);
+        break;
+      case 'produto':
+        padroes.respostas_produto.push(mensagem);
+        break;
+      default:
+        padroes.tom_geral.push(mensagem);
+    }
   };
 
   const calcularConfiancaAdmin = (mensagem: string): number => {
@@ -190,49 +339,30 @@ const HistoryAnalysisManager = () => {
     return 'informativa';
   };
 
-  const avaliarQualidade = (mensagem: any): number => {
-    // Pontuação baseada em características de qualidade
-    let qualidade = 0.5; // Base
+  const avaliarQualidadeMensagem = (mensagem: string): number => {
+    let qualidade = 0.5;
     
-    // Mensagens mais elaboradas tendem a ser melhores
-    if (mensagem.mensagem_recebida.length > 30) qualidade += 0.2;
-    
-    // Presença de emoji pode indicar naturalidade
-    if (/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]/u.test(mensagem.mensagem_recebida)) {
-      qualidade += 0.2;
-    }
-    
-    // Boa estrutura
-    if (/^[A-Z].*[.!?]$/.test(mensagem.mensagem_recebida.trim())) {
-      qualidade += 0.1;
-    }
+    if (mensagem.length > 15 && mensagem.length < 300) qualidade += 0.2;
+    if (/^[A-Z].*[.!?]$/.test(mensagem.trim())) qualidade += 0.2;
+    if (/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]/u.test(mensagem)) qualidade += 0.1;
     
     return Math.min(qualidade, 1);
   };
 
-  const extrairContextos = (mensagens: any[]) => {
-    const contextos = {};
-    mensagens.forEach(msg => {
-      const contexto = identificarContexto(msg);
-      contextos[contexto] = (contextos[contexto] || 0) + 1;
-    });
-    return contextos;
-  };
-
-  const descobrirPadroes = (mensagens: any[]) => {
-    // Análise simples de padrões
-    const horarios = mensagens.map(msg => new Date(msg.timestamp).getHours());
-    const horariosFrequentes = horarios.reduce((acc, hora) => {
-      acc[hora] = (acc[hora] || 0) + 1;
-      return acc;
-    }, {});
-
+  const extrairContextosEncontrados = (padroes: any) => {
     return {
-      horarios_ativos: horariosFrequentes,
-      total_conversas: mensagens.length,
-      periodo_mais_ativo: Object.keys(horariosFrequentes).reduce((a, b) => 
-        horariosFrequentes[a] > horariosFrequentes[b] ? a : b
-      )
+      total_saudacoes: padroes.saudacoes.length,
+      total_despedidas: padroes.despedidas.length,
+      total_respostas_preco: padroes.respostas_preco.length,
+      total_respostas_produto: padroes.respostas_produto.length,
+      palavras_mais_usadas: Object.entries(padroes.palavras_frequentes)
+        .sort(([,a], [,b]) => (b as number) - (a as number))
+        .slice(0, 10)
+        .map(([palavra]) => palavra),
+      emojis_favoritos: Object.entries(padroes.emojis_usados)
+        .sort(([,a], [,b]) => (b as number) - (a as number))
+        .slice(0, 5)
+        .map(([emoji]) => emoji)
     };
   };
 
@@ -281,7 +411,7 @@ const HistoryAnalysisManager = () => {
             Análise Automática do Histórico
           </CardTitle>
           <CardDescription>
-            Analise conversas antigas para identificar padrões e melhorar as respostas do bot
+            Analise conversas antigas para identificar padrões do administrador e treinar automaticamente o bot
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -304,8 +434,11 @@ const HistoryAnalysisManager = () => {
               className="flex items-center gap-2"
             >
               <History className="h-4 w-4" />
-              {analyzing ? 'Analisando...' : 'Iniciar Análise'}
+              {analyzing ? 'Analisando Padrões...' : 'Iniciar Análise Inteligente'}
             </Button>
+          </div>
+          <div className="text-sm text-gray-600">
+            💡 A análise inteligente irá identificar automaticamente mensagens que seguem o padrão do administrador e adicioná-las ao treinamento
           </div>
         </CardContent>
       </Card>
@@ -371,10 +504,12 @@ const HistoryAnalysisManager = () => {
 
                         {analise.padroes_descobertos && (
                           <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                            <h4 className="font-medium text-sm mb-2">Padrões Descobertos</h4>
-                            <div className="text-sm text-gray-600">
-                              <p>Total de conversas: {analise.padroes_descobertos.total_conversas}</p>
-                              <p>Período mais ativo: {analise.padroes_descobertos.periodo_mais_ativo}h</p>
+                            <h4 className="font-medium text-sm mb-2">Padrões Descobertos do Administrador</h4>
+                            <div className="text-sm text-gray-600 space-y-1">
+                              <p>📝 Saudações identificadas: {analise.padroes_descobertos.saudacoes?.length || 0}</p>
+                              <p>💰 Respostas sobre preço: {analise.padroes_descobertos.respostas_preco?.length || 0}</p>
+                              <p>📦 Respostas sobre produtos: {analise.padroes_descobertos.respostas_produto?.length || 0}</p>
+                              <p>😊 Emojis usados: {Object.keys(analise.padroes_descobertos.emojis_usados || {}).slice(0, 5).join(' ')}</p>
                             </div>
                           </div>
                         )}
